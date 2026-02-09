@@ -5,8 +5,11 @@
 
 // Database connection and initialization
 export {
-    closeDatabase, getDatabase,
-    initializeDatabase, toSQLiteDateTime, withTransaction
+    closeDatabase,
+    getDatabase,
+    initializeDatabase,
+    toSQLiteDateTime,
+    withTransaction
 } from "./database";
 
 // Schema definitions
@@ -18,4 +21,11 @@ export {
     validateMigrations,
     type Migration
 } from "./migrations";
+
+// Repositories
+export {
+    BaseRepository,
+    ingredientRepository,
+    inventoryTransactionRepository, productRepository, recipeRepository, saleRepository
+} from "./repositories";
 
