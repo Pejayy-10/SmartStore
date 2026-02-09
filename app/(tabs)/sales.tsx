@@ -1,53 +1,47 @@
 /**
- * SmartStore Sales History Screen
- * View sales history with filtering and daily summaries
+ * SmartStore Sales Screen
+ * Professional design with orange theme
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors } from "@/constants/theme";
+import { Colors, brand, radius, shadows } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAppStore, useSalesStore } from "@/store";
+import { useAppStore, useSalesStore, useSettingsStore } from "@/store";
 import type { PaymentMethod, Sale } from "@/types";
+import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     FlatList,
     RefreshControl,
-    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
 
-// Date helper
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-PH", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-};
-
-const formatTime = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleTimeString("en-PH", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
-const getTodayDate = () => {
-  const today = new Date();
-  return today.toISOString().split("T")[0];
-};
-
 type FilterPeriod = "today" | "week" | "month" | "all";
 
+const FILTER_OPTIONS: { key: FilterPeriod; label: string }[] = [
+  { key: "today", label: "Today" },
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "all", label: "All" },
+];
+
+const PAYMENT_COLORS: Record<PaymentMethod, string> = {
+  cash: "#34C759",
+  card: "#007AFF",
+  gcash: "#0066FF",
+  maya: "#00B900",
+  other: "#8E8E93",
+};
+
 export default function SalesScreen() {
-  const colorScheme = useColorScheme() ?? "light";
+  const systemColorScheme = useColorScheme() ?? "light";
+  const { themeMode } = useSettingsStore();
+  const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
   const [refreshing, setRefreshing] = useState(false);
@@ -70,20 +64,10 @@ export default function SalesScreen() {
     clearError,
   } = useSalesStore();
 
-  // Initialize database on mount
-  useEffect(() => {
-    if (!isInitialized && !isInitializing) {
-      initialize();
-    }
-  }, [isInitialized, isInitializing, initialize]);
+  // Get today's date
+  const getTodayDate = () => new Date().toISOString().split("T")[0];
 
-  // Fetch sales and summary based on filter
-  useEffect(() => {
-    if (isInitialized) {
-      loadSales();
-    }
-  }, [isInitialized, filterPeriod]);
-
+  // Load sales based on filter
   const loadSales = useCallback(async () => {
     const today = getTodayDate();
 
@@ -106,6 +90,27 @@ export default function SalesScreen() {
     }
   }, [filterPeriod, fetchSales, fetchByDateRange, fetchDailySummary]);
 
+  // Initialize database on mount
+  useEffect(() => {
+    if (!isInitialized && !isInitializing) {
+      initialize();
+    }
+  }, [isInitialized, isInitializing, initialize]);
+
+  // Fetch sales when initialized
+  useEffect(() => {
+    if (isInitialized) {
+      loadSales();
+    }
+  }, [isInitialized]);
+
+  // Reload when filter changes
+  useEffect(() => {
+    if (isInitialized) {
+      loadSales();
+    }
+  }, [filterPeriod]);
+
   // Handle refresh
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -113,12 +118,12 @@ export default function SalesScreen() {
     setRefreshing(false);
   }, [loadSales]);
 
-  // Handle void sale
-  const handleVoidSale = useCallback(
+  // Handle void
+  const handleVoid = useCallback(
     (sale: Sale) => {
       Alert.alert(
         "Void Sale",
-        `Are you sure you want to void this sale of ₱${sale.total.toFixed(2)}? This action cannot be undone.`,
+        `Are you sure you want to void sale #${sale.id}?`,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -127,8 +132,7 @@ export default function SalesScreen() {
             onPress: async () => {
               const success = await voidSale(sale.id);
               if (success) {
-                Alert.alert("Success", "Sale has been voided");
-                loadSales();
+                await loadSales();
               } else {
                 Alert.alert("Error", "Failed to void sale");
               }
@@ -140,86 +144,94 @@ export default function SalesScreen() {
     [voidSale, loadSales],
   );
 
-  // Payment method badge
-  const getPaymentColor = (method: PaymentMethod) => {
-    const colors: Record<PaymentMethod, string> = {
-      cash: "#4CAF50",
-      card: "#2196F3",
-      gcash: "#1E88E5",
-      maya: "#7B1FA2",
-      other: "#9E9E9E",
-    };
-    return colors[method] || "#9E9E9E";
+  // Format time
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
   // Render sale item
-  const renderSale = ({ item }: { item: Sale }) => (
-    <View style={[styles.saleCard, { backgroundColor: colors.background }]}>
-      <View style={styles.saleHeader}>
-        <View>
-          <Text style={[styles.saleTime, { color: colors.text }]}>
-            {formatTime(item.created_at)}
-          </Text>
-          <Text style={[styles.saleDate, { color: colors.icon }]}>
-            {formatDate(item.created_at)}
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.paymentBadge,
-            { backgroundColor: getPaymentColor(item.payment_method) },
-          ]}
-        >
-          <Text style={styles.paymentText}>
-            {item.payment_method.toUpperCase()}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.saleDetails}>
-        <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: colors.icon }]}>
-            Subtotal
-          </Text>
-          <Text style={[styles.detailValue, { color: colors.text }]}>
-            ₱{item.subtotal.toFixed(2)}
-          </Text>
-        </View>
-        {item.discount_amount > 0 && (
-          <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: colors.icon }]}>
-              Discount
+  const renderSale = ({ item }: { item: Sale }) => {
+    return (
+      <View
+        style={[
+          styles.saleCard,
+          { backgroundColor: colors.card, borderColor: colors.border },
+          shadows.soft,
+        ]}
+      >
+        <View style={styles.saleHeader}>
+          <View style={styles.saleIdContainer}>
+            <Text style={[styles.saleId, { color: colors.text }]}>
+              #{item.id}
             </Text>
-            <Text style={[styles.discountValue]}>
-              -₱{item.discount_amount.toFixed(2)}
+            <Text style={[styles.saleTime, { color: colors.textTertiary }]}>
+              {formatTime(item.created_at)}
             </Text>
           </View>
-        )}
-        <View style={[styles.detailRow, styles.totalRow]}>
-          <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
-          <Text style={[styles.totalValue, { color: colors.tint }]}>
-            ₱{item.total.toFixed(2)}
-          </Text>
+          <View
+            style={[
+              styles.paymentBadge,
+              { backgroundColor: PAYMENT_COLORS[item.payment_method] },
+            ]}
+          >
+            <Text style={styles.paymentBadgeText}>
+              {item.payment_method.toUpperCase()}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      <TouchableOpacity
-        style={styles.voidButton}
-        onPress={() => handleVoidSale(item)}
-      >
-        <IconSymbol name="xmark.circle" size={16} color="#FF4444" />
-        <Text style={styles.voidText}>Void</Text>
-      </TouchableOpacity>
-    </View>
-  );
+        <View style={styles.saleDetails}>
+          <View style={styles.saleRow}>
+            <Text style={[styles.saleLabel, { color: colors.textSecondary }]}>
+              Total
+            </Text>
+            <Text style={[styles.saleTotal, { color: brand.primary }]}>
+              ₱{item.total.toFixed(2)}
+            </Text>
+          </View>
+          {item.discount_amount > 0 && (
+            <View style={styles.saleRow}>
+              <Text style={[styles.saleLabel, { color: colors.textSecondary }]}>
+                Discount
+              </Text>
+              <Text style={[styles.saleDiscount, { color: "#34C759" }]}>
+                -₱{item.discount_amount.toFixed(2)}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={styles.voidButton}
+          onPress={() => handleVoid(item)}
+        >
+          <Text style={styles.voidButtonText}>Void</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // Calculate summary stats
+  const summaryStats = {
+    totalSales: dailySummary?.total_sales || 0,
+    transactionCount: dailySummary?.transaction_count || 0,
+    avgSale: dailySummary?.transaction_count
+      ? dailySummary.total_sales / dailySummary.transaction_count
+      : 0,
+  };
 
   // Show loading state
   if (isInitializing) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.tint} />
+        <ActivityIndicator size="large" color={brand.primary} />
         <Text style={[styles.loadingText, { color: colors.text }]}>
-          Initializing...
+          Loading...
         </Text>
       </View>
     );
@@ -229,103 +241,112 @@ export default function SalesScreen() {
   if (initError) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF4444" />
+        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF3B30" />
         <Text style={[styles.errorText, { color: colors.text }]}>
           {initError}
         </Text>
-        <TouchableOpacity style={styles.retryButton} onPress={initialize}>
+        <TouchableOpacity
+          style={[styles.retryButton, { backgroundColor: brand.primary }]}
+          onPress={initialize}
+        >
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // Calculate totals
-  const totalSales = sales.reduce((sum, s) => sum + s.total, 0);
-  const totalTransactions = sales.length;
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Sales</Text>
-      </View>
-
-      {/* Summary Card */}
-      <View
-        style={[
-          styles.summaryCard,
-          { backgroundColor: colorScheme === "dark" ? "#1C1C1E" : "#F8F8F8" },
-        ]}
+      <LinearGradient
+        colors={[brand.primary, brand.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.header}
       >
-        <View style={styles.summaryItem}>
-          <Text style={[styles.summaryLabel, { color: colors.icon }]}>
-            {filterPeriod === "today" ? "Today's Sales" : "Period Sales"}
-          </Text>
-          <Text style={[styles.summaryValue, { color: colors.tint }]}>
-            ₱{totalSales.toFixed(2)}
-          </Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={[styles.summaryLabel, { color: colors.icon }]}>
-            Transactions
-          </Text>
-          <Text style={[styles.summaryCount, { color: colors.text }]}>
-            {totalTransactions}
-          </Text>
-        </View>
-        {dailySummary && filterPeriod === "today" && (
-          <>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
-              <Text style={[styles.summaryLabel, { color: colors.icon }]}>
-                Avg. Sale
-              </Text>
-              <Text style={[styles.summaryCount, { color: colors.text }]}>
-                ₱
-                {totalTransactions > 0
-                  ? (totalSales / totalTransactions).toFixed(2)
-                  : "0.00"}
-              </Text>
-            </View>
-          </>
-        )}
-      </View>
+        <Text style={styles.title}>Sales History</Text>
+        <Text style={styles.subtitle}>{sales.length} transactions</Text>
+      </LinearGradient>
 
-      {/* Period Filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterScroll}
-        contentContainerStyle={styles.filterContainer}
-      >
-        {(["today", "week", "month", "all"] as FilterPeriod[]).map((period) => (
-          <TouchableOpacity
-            key={period}
-            style={[
-              styles.filterChip,
-              filterPeriod === period && { backgroundColor: colors.tint },
-            ]}
-            onPress={() => setFilterPeriod(period)}
-          >
+      {/* Summary Cards */}
+      <View style={styles.summaryWrapper}>
+        <View
+          style={[
+            styles.summaryCard,
+            { backgroundColor: colors.card },
+            shadows.medium,
+          ]}
+        >
+          <View style={styles.summaryItem}>
             <Text
-              style={[
-                styles.filterText,
-                filterPeriod === period && { color: "#FFFFFF" },
-              ]}
+              style={[styles.summaryLabel, { color: colors.textSecondary }]}
             >
-              {period === "today"
-                ? "Today"
-                : period === "week"
-                  ? "This Week"
-                  : period === "month"
-                    ? "This Month"
-                    : "All Time"}
+              Total Sales
             </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+            <Text style={[styles.summaryValue, { color: brand.primary }]}>
+              ₱{summaryStats.totalSales.toFixed(2)}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text
+              style={[styles.summaryLabel, { color: colors.textSecondary }]}
+            >
+              Transactions
+            </Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
+              {summaryStats.transactionCount}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text
+              style={[styles.summaryLabel, { color: colors.textSecondary }]}
+            >
+              Average
+            </Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
+              ₱{summaryStats.avgSale.toFixed(2)}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Filter Tabs */}
+      <View style={styles.filterWrapper}>
+        <FlatList
+          horizontal
+          data={FILTER_OPTIONS}
+          keyExtractor={(item) => item.key}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterList}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[
+                styles.filterTab,
+                {
+                  backgroundColor:
+                    filterPeriod === item.key ? brand.primary : colors.card,
+                  borderColor:
+                    filterPeriod === item.key ? brand.primary : colors.border,
+                },
+              ]}
+              onPress={() => setFilterPeriod(item.key)}
+            >
+              <Text
+                style={[
+                  styles.filterTabText,
+                  {
+                    color: filterPeriod === item.key ? "#FFFFFF" : colors.text,
+                  },
+                ]}
+              >
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
 
       {/* Error Display */}
       {error && (
@@ -341,20 +362,37 @@ export default function SalesScreen() {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={brand.primary}
+          />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             {isLoading ? (
-              <ActivityIndicator size="large" color={colors.tint} />
+              <ActivityIndicator size="large" color={brand.primary} />
             ) : (
               <>
-                <IconSymbol name="doc.text" size={48} color={colors.icon} />
-                <Text style={[styles.emptyText, { color: colors.icon }]}>
+                <View
+                  style={[
+                    styles.emptyIcon,
+                    { backgroundColor: brand.primaryFaded },
+                  ]}
+                >
+                  <IconSymbol
+                    name="chart.bar.fill"
+                    size={40}
+                    color={brand.primary}
+                  />
+                </View>
+                <Text style={[styles.emptyText, { color: colors.text }]}>
                   No sales yet
                 </Text>
-                <Text style={[styles.emptySubtext, { color: colors.icon }]}>
-                  Make your first sale in the POS tab
+                <Text
+                  style={[styles.emptySubtext, { color: colors.textSecondary }]}
+                >
+                  Complete your first sale in the POS tab
                 </Text>
               </>
             )}
@@ -374,71 +412,76 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    gap: 16,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
+    paddingTop: 56,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
   },
   title: {
     fontSize: 28,
-    fontWeight: "bold",
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 4,
+  },
+  summaryWrapper: {
+    paddingHorizontal: 16,
+    marginTop: -12,
   },
   summaryCard: {
     flexDirection: "row",
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 12,
+    padding: 20,
+    borderRadius: radius.xl,
   },
   summaryItem: {
     flex: 1,
     alignItems: "center",
   },
+  summaryLabel: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
   summaryDivider: {
     width: 1,
     backgroundColor: "#E0E0E0",
-    marginHorizontal: 8,
   },
-  summaryLabel: {
-    fontSize: 12,
-    marginBottom: 4,
+  filterWrapper: {
+    paddingVertical: 16,
   },
-  summaryValue: {
-    fontSize: 22,
-    fontWeight: "bold",
-  },
-  summaryCount: {
-    fontSize: 20,
-    fontWeight: "600",
-  },
-  filterScroll: {
-    maxHeight: 50,
-    marginBottom: 12,
-  },
-  filterContainer: {
+  filterList: {
     paddingHorizontal: 16,
     gap: 8,
   },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#F0F0F0",
+  filterTab: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: radius.full,
+    borderWidth: 1,
     marginRight: 8,
   },
-  filterText: {
+  filterTabText: {
     fontSize: 14,
-    fontWeight: "500",
-    color: "#666",
+    fontWeight: "600",
   },
   errorBanner: {
-    backgroundColor: "#FF4444",
+    backgroundColor: "#FF3B30",
     marginHorizontal: 16,
     marginBottom: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: radius.md,
   },
   errorBannerText: {
     color: "#FFFFFF",
@@ -451,115 +494,108 @@ const styles = StyleSheet.create({
   saleCard: {
     padding: 16,
     marginBottom: 10,
-    borderRadius: 12,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
   },
   saleHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     marginBottom: 12,
   },
-  saleTime: {
-    fontSize: 16,
-    fontWeight: "600",
+  saleIdContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
-  saleDate: {
+  saleId: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  saleTime: {
     fontSize: 13,
-    marginTop: 2,
   },
   paymentBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 10,
+    borderRadius: radius.sm,
   },
-  paymentText: {
+  paymentBadgeText: {
     color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   saleDetails: {
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-    paddingTop: 12,
-  },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  detailLabel: {
-    fontSize: 14,
-  },
-  detailValue: {
-    fontSize: 14,
-  },
-  discountValue: {
-    fontSize: 14,
-    color: "#FF4444",
-  },
-  totalRow: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-  },
-  totalLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  totalValue: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  voidButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#FFF0F0",
     gap: 6,
   },
-  voidText: {
-    color: "#FF4444",
-    fontWeight: "500",
+  saleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  saleLabel: {
     fontSize: 14,
+  },
+  saleTotal: {
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  saleDiscount: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  voidButton: {
+    position: "absolute",
+    bottom: 16,
+    right: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    backgroundColor: "#FFEBEE",
+  },
+  voidButtonText: {
+    color: "#FF3B30",
+    fontSize: 12,
+    fontWeight: "700",
   },
   emptyContainer: {
     alignItems: "center",
     paddingTop: 60,
-    gap: 12,
+    paddingHorizontal: 40,
+    gap: 16,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   emptySubtext: {
     fontSize: 14,
     textAlign: "center",
   },
   loadingText: {
-    marginTop: 16,
     fontSize: 16,
+    fontWeight: "500",
   },
   errorText: {
-    marginTop: 16,
     fontSize: 16,
     textAlign: "center",
   },
   retryButton: {
-    marginTop: 20,
-    backgroundColor: "#0A84FF",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
   },
   retryButtonText: {
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
   },
 });

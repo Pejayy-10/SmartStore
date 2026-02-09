@@ -1,13 +1,19 @@
 /**
  * SmartStore POS Screen
- * Point of Sale checkout with product selection and cart
+ * Professional Point of Sale checkout with orange theme
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors } from "@/constants/theme";
+import { Colors, brand, radius, shadows } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAppStore, useCartStore, useProductStore } from "@/store";
+import {
+    useAppStore,
+    useCartStore,
+    useProductStore,
+    useSettingsStore,
+} from "@/store";
 import type { PaymentMethod, Product } from "@/types";
+import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -18,7 +24,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 
 const PAYMENT_METHODS: { key: PaymentMethod; label: string; icon: string }[] = [
@@ -29,7 +35,9 @@ const PAYMENT_METHODS: { key: PaymentMethod; label: string; icon: string }[] = [
 ];
 
 export default function POSScreen() {
-  const colorScheme = useColorScheme() ?? "light";
+  const systemColorScheme = useColorScheme() ?? "light";
+  const { themeMode } = useSettingsStore();
+  const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -125,17 +133,34 @@ export default function POSScreen() {
   // Render product grid item
   const renderProduct = ({ item }: { item: Product }) => (
     <TouchableOpacity
-      style={[styles.productTile, { backgroundColor: colors.background }]}
+      style={[
+        styles.productTile,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+        shadows.soft,
+      ]}
       onPress={() => addItem(item)}
       activeOpacity={0.7}
     >
+      <View
+        style={[
+          styles.productCategory,
+          { backgroundColor: brand.primaryFaded },
+        ]}
+      >
+        <Text style={[styles.productCategoryText, { color: brand.primary }]}>
+          {item.category}
+        </Text>
+      </View>
       <Text
         style={[styles.productTileName, { color: colors.text }]}
         numberOfLines={2}
       >
         {item.name}
       </Text>
-      <Text style={[styles.productTilePrice, { color: colors.tint }]}>
+      <Text style={[styles.productTilePrice, { color: brand.primary }]}>
         ₱{item.selling_price.toFixed(2)}
       </Text>
     </TouchableOpacity>
@@ -143,7 +168,7 @@ export default function POSScreen() {
 
   // Render cart item
   const renderCartItem = ({ item }: { item: (typeof items)[0] }) => (
-    <View style={[styles.cartItem, { borderBottomColor: colors.icon }]}>
+    <View style={[styles.cartItem, { borderBottomColor: colors.border }]}>
       <View style={styles.cartItemInfo}>
         <Text
           style={[styles.cartItemName, { color: colors.text }]}
@@ -151,33 +176,39 @@ export default function POSScreen() {
         >
           {item.product.name}
         </Text>
-        <Text style={[styles.cartItemPrice, { color: colors.icon }]}>
+        <Text style={[styles.cartItemPrice, { color: colors.textSecondary }]}>
           ₱{item.unitPrice.toFixed(2)} × {item.quantity}
         </Text>
       </View>
       <View style={styles.cartItemActions}>
-        <Text style={[styles.cartItemTotal, { color: colors.tint }]}>
+        <Text style={[styles.cartItemTotal, { color: brand.primary }]}>
           ₱{(item.unitPrice * item.quantity).toFixed(2)}
         </Text>
         <View style={styles.quantityControls}>
           <TouchableOpacity
-            style={styles.quantityButton}
+            style={[
+              styles.quantityButton,
+              { backgroundColor: colors.background },
+            ]}
             onPress={() => decrementQuantity(item.product.id)}
           >
-            <IconSymbol name="minus" size={14} color={colors.tint} />
+            <IconSymbol name="minus" size={14} color={brand.primary} />
           </TouchableOpacity>
           <Text style={[styles.quantityText, { color: colors.text }]}>
             {item.quantity}
           </Text>
           <TouchableOpacity
-            style={styles.quantityButton}
+            style={[
+              styles.quantityButton,
+              { backgroundColor: brand.primaryFaded },
+            ]}
             onPress={() => incrementQuantity(item.product.id)}
           >
-            <IconSymbol name="plus" size={14} color={colors.tint} />
+            <IconSymbol name="plus" size={14} color={brand.primary} />
           </TouchableOpacity>
         </View>
         <TouchableOpacity onPress={() => removeItem(item.product.id)}>
-          <IconSymbol name="trash" size={18} color="#FF4444" />
+          <IconSymbol name="trash" size={18} color="#FF3B30" />
         </TouchableOpacity>
       </View>
     </View>
@@ -187,9 +218,9 @@ export default function POSScreen() {
   if (isInitializing) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.tint} />
+        <ActivityIndicator size="large" color={brand.primary} />
         <Text style={[styles.loadingText, { color: colors.text }]}>
-          Initializing...
+          Loading products...
         </Text>
       </View>
     );
@@ -199,11 +230,14 @@ export default function POSScreen() {
   if (initError) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF4444" />
+        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF3B30" />
         <Text style={[styles.errorText, { color: colors.text }]}>
           {initError}
         </Text>
-        <TouchableOpacity style={styles.retryButton} onPress={initialize}>
+        <TouchableOpacity
+          style={[styles.retryButton, { backgroundColor: brand.primary }]}
+          onPress={initialize}
+        >
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -213,27 +247,38 @@ export default function POSScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          Point of Sale
-        </Text>
-        {items.length > 0 && (
-          <TouchableOpacity onPress={clearCart}>
-            <Text style={{ color: "#FF4444", fontWeight: "600" }}>Clear</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <LinearGradient
+        colors={[brand.primary, brand.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <Text style={styles.title}>Point of Sale</Text>
+          {items.length > 0 && (
+            <TouchableOpacity style={styles.clearButton} onPress={clearCart}>
+              <Text style={styles.clearButtonText}>Clear Cart</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </LinearGradient>
 
       <View style={styles.mainContent}>
         {/* Products Section */}
         <View style={styles.productsSection}>
           {/* Search Bar */}
-          <View style={[styles.searchContainer, { borderColor: colors.icon }]}>
+          <View
+            style={[
+              styles.searchContainer,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              shadows.soft,
+            ]}
+          >
             <IconSymbol name="magnifyingglass" size={18} color={colors.icon} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
               placeholder="Search products..."
-              placeholderTextColor={colors.icon}
+              placeholderTextColor={colors.textTertiary}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -249,9 +294,16 @@ export default function POSScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={styles.emptyProducts}>
-                <IconSymbol name="cart" size={40} color={colors.icon} />
-                <Text style={[styles.emptyText, { color: colors.icon }]}>
+                <IconSymbol name="cart" size={48} color={colors.icon} />
+                <Text
+                  style={[styles.emptyText, { color: colors.textSecondary }]}
+                >
                   No products available
+                </Text>
+                <Text
+                  style={[styles.emptySubtext, { color: colors.textTertiary }]}
+                >
+                  Add products in the Products tab
                 </Text>
               </View>
             }
@@ -262,17 +314,23 @@ export default function POSScreen() {
         <View
           style={[
             styles.cartSection,
-            { backgroundColor: colorScheme === "dark" ? "#1C1C1E" : "#F8F8F8" },
+            { backgroundColor: colors.card },
+            shadows.medium,
           ]}
         >
-          <Text style={[styles.cartTitle, { color: colors.text }]}>
-            Cart ({itemCount()})
-          </Text>
+          <View style={styles.cartHeader}>
+            <IconSymbol name="cart.fill" size={20} color={brand.primary} />
+            <Text style={[styles.cartTitle, { color: colors.text }]}>
+              Cart ({itemCount()})
+            </Text>
+          </View>
 
           {items.length === 0 ? (
             <View style={styles.emptyCart}>
-              <IconSymbol name="cart" size={32} color={colors.icon} />
-              <Text style={[styles.emptyCartText, { color: colors.icon }]}>
+              <IconSymbol name="cart" size={40} color={colors.icon} />
+              <Text
+                style={[styles.emptyCartText, { color: colors.textSecondary }]}
+              >
                 Tap products to add
               </Text>
             </View>
@@ -287,9 +345,16 @@ export default function POSScreen() {
               />
 
               {/* Cart Summary */}
-              <View style={styles.cartSummary}>
+              <View
+                style={[styles.cartSummary, { borderTopColor: colors.border }]}
+              >
                 <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { color: colors.icon }]}>
+                  <Text
+                    style={[
+                      styles.summaryLabel,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
                     Subtotal
                   </Text>
                   <Text style={[styles.summaryValue, { color: colors.text }]}>
@@ -298,19 +363,30 @@ export default function POSScreen() {
                 </View>
                 {totalDiscount() > 0 && (
                   <View style={styles.summaryRow}>
-                    <Text style={[styles.summaryLabel, { color: colors.icon }]}>
+                    <Text
+                      style={[
+                        styles.summaryLabel,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
                       Discount
                     </Text>
-                    <Text style={[styles.summaryValue, { color: "#FF4444" }]}>
+                    <Text style={[styles.summaryValue, { color: "#34C759" }]}>
                       -₱{totalDiscount().toFixed(2)}
                     </Text>
                   </View>
                 )}
-                <View style={[styles.summaryRow, styles.totalRow]}>
+                <View
+                  style={[
+                    styles.summaryRow,
+                    styles.totalRow,
+                    { borderTopColor: colors.border },
+                  ]}
+                >
                   <Text style={[styles.totalLabel, { color: colors.text }]}>
                     TOTAL
                   </Text>
-                  <Text style={[styles.totalValue, { color: colors.tint }]}>
+                  <Text style={[styles.totalValue, { color: brand.primary }]}>
                     ₱{total().toFixed(2)}
                   </Text>
                 </View>
@@ -318,14 +394,18 @@ export default function POSScreen() {
 
               {/* Checkout Button */}
               <TouchableOpacity
-                style={[
-                  styles.checkoutButton,
-                  { backgroundColor: colors.tint },
-                ]}
+                style={[styles.checkoutButton, shadows.glow]}
                 onPress={() => setShowCheckout(true)}
               >
-                <IconSymbol name="creditcard" size={20} color="#FFFFFF" />
-                <Text style={styles.checkoutButtonText}>Checkout</Text>
+                <LinearGradient
+                  colors={[brand.primary, brand.primaryDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.checkoutButtonGradient}
+                >
+                  <IconSymbol name="creditcard" size={20} color="#FFFFFF" />
+                  <Text style={styles.checkoutButtonText}>Checkout</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </>
           )}
@@ -342,7 +422,9 @@ export default function POSScreen() {
         <View
           style={[styles.checkoutModal, { backgroundColor: colors.background }]}
         >
-          <View style={styles.modalHeader}>
+          <View
+            style={[styles.modalHeader, { borderBottomColor: colors.border }]}
+          >
             <TouchableOpacity onPress={() => setShowCheckout(false)}>
               <IconSymbol name="xmark" size={24} color={colors.text} />
             </TouchableOpacity>
@@ -350,6 +432,21 @@ export default function POSScreen() {
               Checkout
             </Text>
             <View style={{ width: 24 }} />
+          </View>
+
+          {/* Total Display */}
+          <View
+            style={[
+              styles.totalDisplay,
+              { backgroundColor: brand.primaryFaded },
+            ]}
+          >
+            <Text style={[styles.totalDisplayLabel, { color: brand.primary }]}>
+              Total Amount
+            </Text>
+            <Text style={[styles.totalDisplayValue, { color: brand.primary }]}>
+              ₱{total().toFixed(2)}
+            </Text>
           </View>
 
           {/* Payment Method */}
@@ -362,17 +459,27 @@ export default function POSScreen() {
                 key={method.key}
                 style={[
                   styles.paymentOption,
-                  paymentMethod === method.key && {
-                    backgroundColor: colors.tint,
-                    borderColor: colors.tint,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor:
+                      paymentMethod === method.key
+                        ? brand.primary
+                        : colors.border,
+                    borderWidth: paymentMethod === method.key ? 2 : 1,
                   },
+                  paymentMethod === method.key && shadows.soft,
                 ]}
                 onPress={() => setPaymentMethod(method.key)}
               >
                 <Text
                   style={[
                     styles.paymentOptionText,
-                    paymentMethod === method.key && { color: "#FFFFFF" },
+                    {
+                      color:
+                        paymentMethod === method.key
+                          ? brand.primary
+                          : colors.text,
+                    },
                   ]}
                 >
                   {method.label}
@@ -385,14 +492,19 @@ export default function POSScreen() {
           <Text style={[styles.sectionLabel, { color: colors.text }]}>
             Amount Received
           </Text>
-          <View style={[styles.amountInput, { borderColor: colors.icon }]}>
-            <Text style={[styles.currencyPrefix, { color: colors.icon }]}>
+          <View
+            style={[
+              styles.amountInput,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.currencyPrefix, { color: brand.primary }]}>
               ₱
             </Text>
             <TextInput
               style={[styles.amountTextInput, { color: colors.text }]}
               placeholder="0.00"
-              placeholderTextColor={colors.icon}
+              placeholderTextColor={colors.textTertiary}
               value={amountInput}
               onChangeText={handleAmountChange}
               keyboardType="decimal-pad"
@@ -404,37 +516,60 @@ export default function POSScreen() {
             {[100, 200, 500, 1000].map((amount) => (
               <TouchableOpacity
                 key={amount}
-                style={styles.quickAmountButton}
+                style={[
+                  styles.quickAmountButton,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
                 onPress={() => handleQuickAmount(amount)}
               >
-                <Text style={styles.quickAmountText}>₱{amount}</Text>
+                <Text style={[styles.quickAmountText, { color: colors.text }]}>
+                  ₱{amount}
+                </Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity
               style={[
                 styles.quickAmountButton,
-                { backgroundColor: colors.tint },
+                {
+                  backgroundColor: brand.primaryFaded,
+                  borderColor: brand.primary,
+                },
               ]}
               onPress={() => handleQuickAmount(total())}
             >
-              <Text style={[styles.quickAmountText, { color: "#FFFFFF" }]}>
+              <Text
+                style={[
+                  styles.quickAmountText,
+                  { color: brand.primary, fontWeight: "700" },
+                ]}
+              >
                 Exact
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* Change Display */}
-          <View style={styles.changeDisplay}>
-            <Text style={[styles.changeLabel, { color: colors.icon }]}>
+          <View
+            style={[
+              styles.changeDisplay,
+              { backgroundColor: changeAmount() >= 0 ? "#E8F5E9" : "#FFEBEE" },
+            ]}
+          >
+            <Text
+              style={[
+                styles.changeLabel,
+                { color: changeAmount() >= 0 ? "#2E7D32" : "#C62828" },
+              ]}
+            >
               Change
             </Text>
             <Text
               style={[
                 styles.changeValue,
-                { color: changeAmount() >= 0 ? "#4CAF50" : "#FF4444" },
+                { color: changeAmount() >= 0 ? "#2E7D32" : "#C62828" },
               ]}
             >
-              ₱{changeAmount().toFixed(2)}
+              ₱{Math.abs(changeAmount()).toFixed(2)}
             </Text>
           </View>
 
@@ -442,19 +577,34 @@ export default function POSScreen() {
           <TouchableOpacity
             style={[
               styles.completeSaleButton,
-              { backgroundColor: changeAmount() >= 0 ? colors.tint : "#CCC" },
+              changeAmount() >= 0 ? shadows.glow : {},
             ]}
             onPress={handleCheckout}
             disabled={isProcessing || changeAmount() < 0}
           >
-            {isProcessing ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <IconSymbol name="checkmark" size={20} color="#FFFFFF" />
-                <Text style={styles.completeSaleText}>Complete Sale</Text>
-              </>
-            )}
+            <LinearGradient
+              colors={
+                changeAmount() >= 0
+                  ? [brand.primary, brand.primaryDark]
+                  : ["#CCC", "#AAA"]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.completeSaleGradient}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <IconSymbol
+                    name="checkmark.circle.fill"
+                    size={22}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.completeSaleText}>Complete Sale</Text>
+                </>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -471,18 +621,34 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    gap: 16,
   },
   header: {
+    paddingTop: 56,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
   },
   title: {
     fontSize: 28,
-    fontWeight: "bold",
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  clearButton: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+  },
+  clearButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 14,
   },
   mainContent: {
     flex: 1,
@@ -490,87 +656,111 @@ const styles = StyleSheet.create({
   },
   productsSection: {
     flex: 1,
-    padding: 12,
+    padding: 16,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    gap: 8,
+    gap: 12,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
   },
   productsGrid: {
-    gap: 8,
+    gap: 12,
+    paddingBottom: 20,
   },
   productTile: {
     flex: 1,
     margin: 4,
-    padding: 12,
-    borderRadius: 10,
+    padding: 16,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
-    minHeight: 80,
+    minHeight: 110,
     justifyContent: "space-between",
   },
-  productTileName: {
-    fontSize: 14,
+  productCategory: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    marginBottom: 8,
+  },
+  productCategoryText: {
+    fontSize: 10,
     fontWeight: "600",
-    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  productTileName: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 8,
   },
   productTilePrice: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "800",
   },
   emptyProducts: {
     alignItems: "center",
-    paddingTop: 40,
-    gap: 8,
+    paddingTop: 60,
+    gap: 12,
   },
   emptyText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  emptySubtext: {
     fontSize: 14,
   },
   cartSection: {
-    width: 280,
-    padding: 12,
-    borderTopLeftRadius: 20,
+    width: 320,
+    padding: 16,
+    borderTopLeftRadius: radius.xl,
+    borderBottomLeftRadius: radius.xl,
+  },
+  cartHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 16,
   },
   cartTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 12,
+    fontWeight: "700",
   },
   emptyCart: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
   },
   emptyCartText: {
-    fontSize: 14,
+    fontSize: 15,
   },
   cartList: {
     flex: 1,
   },
   cartItem: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
   },
   cartItemInfo: {
-    marginBottom: 6,
+    marginBottom: 8,
   },
   cartItemName: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: "600",
   },
   cartItemPrice: {
-    fontSize: 12,
+    fontSize: 13,
+    marginTop: 2,
   },
   cartItemActions: {
     flexDirection: "row",
@@ -578,73 +768,75 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   cartItemTotal: {
-    fontSize: 14,
-    fontWeight: "600",
-    minWidth: 60,
+    fontSize: 16,
+    fontWeight: "700",
+    minWidth: 80,
   },
   quantityControls: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
   },
   quantityButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#F0F0F0",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
   },
   quantityText: {
-    fontSize: 14,
-    fontWeight: "600",
-    minWidth: 20,
+    fontSize: 16,
+    fontWeight: "700",
+    minWidth: 24,
     textAlign: "center",
   },
   cartSummary: {
-    paddingTop: 12,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-    marginTop: 8,
+    marginTop: 12,
   },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 4,
+    marginBottom: 8,
   },
   summaryLabel: {
-    fontSize: 13,
+    fontSize: 14,
   },
   summaryValue: {
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: "500",
   },
   totalRow: {
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
   },
   totalLabel: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "700",
   },
   totalValue: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 22,
+    fontWeight: "800",
   },
   checkoutButton: {
+    marginTop: 16,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+  },
+  checkoutButtonGradient: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 12,
-    gap: 8,
+    paddingVertical: 16,
+    gap: 10,
   },
   checkoutButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   checkoutModal: {
     flex: 1,
@@ -655,15 +847,32 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: 20,
-    marginBottom: 30,
+    paddingBottom: 20,
+    marginBottom: 20,
+    borderBottomWidth: 1,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  sectionLabel: {
+  totalDisplay: {
+    padding: 20,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  totalDisplayLabel: {
     fontSize: 14,
     fontWeight: "600",
+    marginBottom: 4,
+  },
+  totalDisplayValue: {
+    fontSize: 36,
+    fontWeight: "800",
+  },
+  sectionLabel: {
+    fontSize: 15,
+    fontWeight: "700",
     marginBottom: 12,
   },
   paymentMethods: {
@@ -673,35 +882,32 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   paymentOption: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    backgroundColor: "#F8F8F8",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: radius.md,
   },
   paymentOptionText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#666",
+    fontSize: 15,
+    fontWeight: "600",
   },
   amountInput: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    borderRadius: radius.lg,
+    paddingHorizontal: 16,
     marginBottom: 16,
   },
   currencyPrefix: {
-    fontSize: 20,
-    marginRight: 4,
+    fontSize: 24,
+    fontWeight: "700",
+    marginRight: 8,
   },
   amountTextInput: {
     flex: 1,
-    paddingVertical: 14,
-    fontSize: 24,
-    fontWeight: "600",
+    paddingVertical: 16,
+    fontSize: 28,
+    fontWeight: "700",
   },
   quickAmounts: {
     flexDirection: "row",
@@ -710,64 +916,64 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   quickAmountButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: "#F0F0F0",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
   },
   quickAmountText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#666",
   },
   changeDisplay: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
-    backgroundColor: "#F8F8F8",
-    borderRadius: 12,
+    padding: 20,
+    borderRadius: radius.lg,
     marginBottom: 24,
   },
   changeLabel: {
     fontSize: 16,
+    fontWeight: "600",
   },
   changeValue: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 32,
+    fontWeight: "800",
   },
   completeSaleButton: {
+    borderRadius: radius.lg,
+    overflow: "hidden",
+  },
+  completeSaleGradient: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 18,
+    gap: 10,
   },
   completeSaleText: {
     color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   loadingText: {
-    marginTop: 16,
     fontSize: 16,
+    fontWeight: "500",
   },
   errorText: {
-    marginTop: 16,
     fontSize: 16,
     textAlign: "center",
   },
   retryButton: {
-    marginTop: 20,
-    backgroundColor: "#0A84FF",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
   },
   retryButtonText: {
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
   },
 });

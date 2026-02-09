@@ -1,21 +1,21 @@
 /**
  * SmartStore Products Screen
- * List and manage products with category filtering
+ * Professional design with orange theme
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors } from "@/constants/theme";
+import { Colors, brand, radius, shadows } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAppStore, useProductStore } from "@/store";
+import { useAppStore, useProductStore, useSettingsStore } from "@/store";
 import type { Product, ProductCategory } from "@/types";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     FlatList,
     RefreshControl,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -26,7 +26,7 @@ import {
 const CATEGORIES: { key: ProductCategory | "all"; label: string }[] = [
   { key: "all", label: "All" },
   { key: "food", label: "Food" },
-  { key: "beverage", label: "Beverage" },
+  { key: "beverage", label: "Drinks" },
   { key: "dessert", label: "Dessert" },
   { key: "snack", label: "Snack" },
   { key: "other", label: "Other" },
@@ -34,14 +34,16 @@ const CATEGORIES: { key: ProductCategory | "all"; label: string }[] = [
 
 export default function ProductsScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? "light";
+  const systemColorScheme = useColorScheme() ?? "light";
+  const { themeMode } = useSettingsStore();
+  const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<
     ProductCategory | "all"
   >("all");
-  const [searchQuery, setSearchQuery] = useState("");
 
   // App store for initialization
   const { isInitialized, isInitializing, initialize, initError } =
@@ -53,8 +55,6 @@ export default function ProductsScreen() {
     isLoading,
     error,
     fetchProducts,
-    fetchByCategory,
-    searchProducts,
     deleteProduct,
     clearError,
   } = useProductStore();
@@ -66,42 +66,35 @@ export default function ProductsScreen() {
     }
   }, [isInitialized, isInitializing, initialize]);
 
-  // Fetch products when initialized or category changes
+  // Fetch products when initialized
   useEffect(() => {
     if (isInitialized) {
-      if (selectedCategory === "all") {
-        fetchProducts();
-      } else {
-        fetchByCategory(selectedCategory);
-      }
+      fetchProducts();
     }
-  }, [isInitialized, selectedCategory, fetchProducts, fetchByCategory]);
+  }, [isInitialized, fetchProducts]);
 
-  // Handle search
-  const handleSearch = useCallback(
-    (query: string) => {
-      setSearchQuery(query);
-      if (query.trim()) {
-        searchProducts(query);
-      } else if (selectedCategory === "all") {
-        fetchProducts();
-      } else {
-        fetchByCategory(selectedCategory);
-      }
-    },
-    [selectedCategory, searchProducts, fetchProducts, fetchByCategory],
-  );
+  // Filter products
+  const filteredProducts = useMemo(() => {
+    let filtered = products;
+
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter((p) => p.category === selectedCategory);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((p) => p.name.toLowerCase().includes(query));
+    }
+
+    return filtered;
+  }, [products, selectedCategory, searchQuery]);
 
   // Handle refresh
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    if (selectedCategory === "all") {
-      await fetchProducts();
-    } else {
-      await fetchByCategory(selectedCategory);
-    }
+    await fetchProducts();
     setRefreshing(false);
-  }, [selectedCategory, fetchProducts, fetchByCategory]);
+  }, [fetchProducts]);
 
   // Handle delete
   const handleDelete = useCallback(
@@ -140,76 +133,65 @@ export default function ProductsScreen() {
     [router],
   );
 
-  // Category badge color
-  const getCategoryColor = (category: ProductCategory) => {
-    const categoryColors: Record<ProductCategory, string> = {
-      food: "#4CAF50",
-      beverage: "#2196F3",
-      dessert: "#E91E63",
-      snack: "#FF9800",
-      other: "#9E9E9E",
-    };
-    return categoryColors[category] || "#9E9E9E";
-  };
-
   // Render product item
-  const renderProduct = ({ item }: { item: Product }) => (
-    <TouchableOpacity
-      style={[styles.productCard, { backgroundColor: colors.background }]}
-      onPress={() => handleEdit(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.productInfo}>
-        <View style={styles.productHeader}>
-          <Text style={[styles.productName, { color: colors.text }]}>
-            {item.name}
-          </Text>
+  const renderProduct = ({ item }: { item: Product }) => {
+    return (
+      <TouchableOpacity
+        style={[
+          styles.productCard,
+          { backgroundColor: colors.card, borderColor: colors.border },
+          shadows.soft,
+        ]}
+        onPress={() => handleEdit(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.productContent}>
           <View
             style={[
               styles.categoryBadge,
-              { backgroundColor: getCategoryColor(item.category) },
+              { backgroundColor: brand.primaryFaded },
             ]}
           >
-            <Text style={styles.categoryText}>{item.category}</Text>
+            <Text style={[styles.categoryText, { color: brand.primary }]}>
+              {item.category}
+            </Text>
           </View>
-        </View>
-        {item.description && (
           <Text
-            style={[styles.productDescription, { color: colors.icon }]}
-            numberOfLines={1}
+            style={[styles.productName, { color: colors.text }]}
+            numberOfLines={2}
           >
-            {item.description}
+            {item.name}
           </Text>
-        )}
-        <View style={styles.priceRow}>
-          <Text style={[styles.productPrice, { color: colors.tint }]}>
+          {item.description && (
+            <Text
+              style={[styles.productDesc, { color: colors.textSecondary }]}
+              numberOfLines={1}
+            >
+              {item.description}
+            </Text>
+          )}
+          <Text style={[styles.productPrice, { color: brand.primary }]}>
             ₱{item.selling_price.toFixed(2)}
           </Text>
-          {item.is_inventory_tracked && (
-            <View style={styles.trackedBadge}>
-              <IconSymbol name="cube" size={12} color="#666" />
-              <Text style={styles.trackedText}>Tracked</Text>
-            </View>
-          )}
         </View>
-      </View>
 
-      <TouchableOpacity
-        onPress={() => handleDelete(item)}
-        style={styles.deleteButton}
-      >
-        <IconSymbol name="trash" size={20} color="#FF4444" />
+        <TouchableOpacity
+          onPress={() => handleDelete(item)}
+          style={styles.deleteButton}
+        >
+          <IconSymbol name="trash" size={18} color="#FF3B30" />
+        </TouchableOpacity>
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   // Show loading state
   if (isInitializing) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.tint} />
+        <ActivityIndicator size="large" color={brand.primary} />
         <Text style={[styles.loadingText, { color: colors.text }]}>
-          Initializing database...
+          Loading...
         </Text>
       </View>
     );
@@ -219,11 +201,14 @@ export default function ProductsScreen() {
   if (initError) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF4444" />
+        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF3B30" />
         <Text style={[styles.errorText, { color: colors.text }]}>
           {initError}
         </Text>
-        <TouchableOpacity style={styles.retryButton} onPress={initialize}>
+        <TouchableOpacity
+          style={[styles.retryButton, { backgroundColor: brand.primary }]}
+          onPress={initialize}
+        >
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -233,89 +218,130 @@ export default function ProductsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Products</Text>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.tint }]}
-          onPress={handleAdd}
-        >
-          <IconSymbol name="plus" size={20} color="#FFFFFF" />
-          <Text style={styles.addButtonText}>Add</Text>
-        </TouchableOpacity>
-      </View>
+      <LinearGradient
+        colors={[brand.primary, brand.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.title}>Products</Text>
+            <Text style={styles.subtitle}>
+              {products.length} products available
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+            <IconSymbol name="plus" size={20} color={brand.primary} />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
 
       {/* Search Bar */}
-      <View style={[styles.searchContainer, { borderColor: colors.icon }]}>
-        <IconSymbol name="magnifyingglass" size={20} color={colors.icon} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
-          placeholder="Search products..."
-          placeholderTextColor={colors.icon}
-          value={searchQuery}
-          onChangeText={handleSearch}
-        />
+      <View style={styles.searchWrapper}>
+        <View
+          style={[
+            styles.searchContainer,
+            { backgroundColor: colors.card, borderColor: colors.border },
+            shadows.soft,
+          ]}
+        >
+          <IconSymbol name="magnifyingglass" size={18} color={colors.icon} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search products..."
+            placeholderTextColor={colors.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
       </View>
 
-      {/* Category Filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoryScroll}
-        contentContainerStyle={styles.categoryContainer}
-      >
-        {CATEGORIES.map((cat) => (
-          <TouchableOpacity
-            key={cat.key}
-            style={[
-              styles.categoryChip,
-              selectedCategory === cat.key && { backgroundColor: colors.tint },
-            ]}
-            onPress={() => {
-              setSelectedCategory(cat.key);
-              setSearchQuery("");
-            }}
-          >
-            <Text
+      {/* Category Tabs */}
+      <View style={styles.categoryWrapper}>
+        <FlatList
+          horizontal
+          data={CATEGORIES}
+          keyExtractor={(item) => item.key}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryList}
+          renderItem={({ item }) => (
+            <TouchableOpacity
               style={[
-                styles.categoryChipText,
-                selectedCategory === cat.key && styles.categoryChipTextSelected,
+                styles.categoryTab,
+                {
+                  backgroundColor:
+                    selectedCategory === item.key ? brand.primary : colors.card,
+                  borderColor:
+                    selectedCategory === item.key
+                      ? brand.primary
+                      : colors.border,
+                },
               ]}
+              onPress={() => setSelectedCategory(item.key)}
             >
-              {cat.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+              <Text
+                style={[
+                  styles.categoryTabText,
+                  {
+                    color:
+                      selectedCategory === item.key ? "#FFFFFF" : colors.text,
+                  },
+                ]}
+              >
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
 
       {/* Error Display */}
       {error && (
         <TouchableOpacity style={styles.errorBanner} onPress={clearError}>
           <Text style={styles.errorBannerText}>{error}</Text>
-          <Text style={styles.dismissText}>Tap to dismiss</Text>
         </TouchableOpacity>
       )}
 
       {/* Products List */}
       <FlatList
-        data={products}
+        data={filteredProducts}
         renderItem={renderProduct}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
+        numColumns={2}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={brand.primary}
+          />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             {isLoading ? (
-              <ActivityIndicator size="large" color={colors.tint} />
+              <ActivityIndicator size="large" color={brand.primary} />
             ) : (
               <>
-                <IconSymbol name="cart" size={48} color={colors.icon} />
-                <Text style={[styles.emptyText, { color: colors.icon }]}>
+                <View
+                  style={[
+                    styles.emptyIcon,
+                    { backgroundColor: brand.primaryFaded },
+                  ]}
+                >
+                  <IconSymbol
+                    name="cart.fill"
+                    size={40}
+                    color={brand.primary}
+                  />
+                </View>
+                <Text style={[styles.emptyText, { color: colors.text }]}>
                   No products yet
                 </Text>
-                <Text style={[styles.emptySubtext, { color: colors.icon }]}>
-                  Tap &quot;Add&quot; to create your first product
+                <Text
+                  style={[styles.emptySubtext, { color: colors.textSecondary }]}
+                >
+                  Tap the + button to add your first product
                 </Text>
               </>
             )}
@@ -335,187 +361,170 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    gap: 16,
   },
   header: {
+    paddingTop: 56,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+  },
+  headerContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
   },
   title: {
     fontSize: 28,
-    fontWeight: "bold",
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 4,
   },
   addButton: {
-    flexDirection: "row",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
-    gap: 6,
   },
-  addButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 14,
+  searchWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    marginTop: -12,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    gap: 10,
+    gap: 12,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
   },
-  categoryScroll: {
-    maxHeight: 50,
-    marginBottom: 12,
+  categoryWrapper: {
+    paddingVertical: 12,
   },
-  categoryContainer: {
+  categoryList: {
     paddingHorizontal: 16,
     gap: 8,
   },
-  categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#F0F0F0",
+  categoryTab: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: radius.full,
+    borderWidth: 1,
     marginRight: 8,
   },
-  categoryChipText: {
+  categoryTabText: {
     fontSize: 14,
-    fontWeight: "500",
-    color: "#666",
-  },
-  categoryChipTextSelected: {
-    color: "#FFFFFF",
+    fontWeight: "600",
   },
   errorBanner: {
-    backgroundColor: "#FF4444",
+    backgroundColor: "#FF3B30",
     marginHorizontal: 16,
     marginBottom: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: radius.md,
   },
   errorBannerText: {
     color: "#FFFFFF",
     fontWeight: "600",
   },
-  dismissText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    opacity: 0.8,
-    marginTop: 2,
-  },
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingBottom: 100,
   },
   productCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flex: 1,
+    margin: 4,
     padding: 16,
-    marginBottom: 10,
-    borderRadius: 12,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    minHeight: 140,
   },
-  productInfo: {
+  productContent: {
     flex: 1,
   },
-  productHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 4,
-  },
-  productName: {
-    fontSize: 17,
-    fontWeight: "600",
-  },
   categoryBadge: {
+    alignSelf: "flex-start",
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+    marginBottom: 8,
   },
   categoryText: {
-    color: "#FFFFFF",
     fontSize: 10,
-    fontWeight: "600",
-    textTransform: "capitalize",
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  productDescription: {
-    fontSize: 14,
-    marginBottom: 6,
+  productName: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
   },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+  productDesc: {
+    fontSize: 12,
+    marginBottom: 8,
   },
   productPrice: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  trackedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#F0F0F0",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  trackedText: {
-    fontSize: 11,
-    color: "#666",
+    fontSize: 20,
+    fontWeight: "800",
+    marginTop: "auto",
   },
   deleteButton: {
-    padding: 8,
+    position: "absolute",
+    top: 12,
+    right: 12,
+    padding: 6,
   },
   emptyContainer: {
     alignItems: "center",
     paddingTop: 60,
-    gap: 12,
+    paddingHorizontal: 40,
+    gap: 16,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   emptySubtext: {
     fontSize: 14,
     textAlign: "center",
   },
   loadingText: {
-    marginTop: 16,
     fontSize: 16,
+    fontWeight: "500",
   },
   errorText: {
-    marginTop: 16,
     fontSize: 16,
     textAlign: "center",
   },
   retryButton: {
-    marginTop: 20,
-    backgroundColor: "#0A84FF",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
   },
   retryButtonText: {
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
   },
 });
