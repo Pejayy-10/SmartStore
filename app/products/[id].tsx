@@ -6,7 +6,7 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useProductStore } from "@/store";
+import { useProductStore, useRecipeStore } from "@/store";
 import type { ProductCategory, ProductInput } from "@/types";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -43,13 +43,22 @@ export default function ProductFormScreen() {
   const { selectedProduct, getProduct, createProduct, updateProduct } =
     useProductStore();
 
+  const { recipes, fetchRecipes } = useRecipeStore();
+
   // Form state
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<ProductCategory>("food");
   const [sellingPrice, setSellingPrice] = useState("");
   const [isInventoryTracked, setIsInventoryTracked] = useState(true);
+  const [selectedRecipeId, setSelectedRecipeId] = useState<number | null>(null);
+  const [showRecipePicker, setShowRecipePicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Load recipes on mount
+  useEffect(() => {
+    fetchRecipes();
+  }, [fetchRecipes]);
 
   // Load existing product for editing
   useEffect(() => {
@@ -66,6 +75,7 @@ export default function ProductFormScreen() {
       setCategory(selectedProduct.category);
       setSellingPrice(selectedProduct.selling_price.toString());
       setIsInventoryTracked(selectedProduct.is_inventory_tracked);
+      setSelectedRecipeId(selectedProduct.recipe_id);
     }
   }, [isEditing, selectedProduct]);
 
@@ -98,6 +108,7 @@ export default function ProductFormScreen() {
       category,
       selling_price: Number(sellingPrice),
       is_inventory_tracked: isInventoryTracked,
+      recipe_id: isInventoryTracked ? selectedRecipeId : null,
     };
 
     try {
@@ -270,14 +281,56 @@ export default function ProductFormScreen() {
           />
         </View>
 
-        {/* Recipe Info (placeholder for future) */}
+        {/* Recipe Selection */}
         {isInventoryTracked && (
-          <View style={[styles.infoBox, { borderColor: colors.icon }]}>
-            <IconSymbol name="info.circle" size={20} color={colors.tint} />
-            <Text style={[styles.infoText, { color: colors.icon }]}>
-              Recipe linking will be available in a future update. For now,
-              products can be created without recipes.
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Link Recipe (Optional)
             </Text>
+            <TouchableOpacity
+              style={[styles.recipeSelector, { borderColor: colors.icon }]}
+              onPress={() => setShowRecipePicker(true)}
+            >
+              <View style={styles.recipeSelectorContent}>
+                {selectedRecipeId ? (
+                  <>
+                    <IconSymbol
+                      name="doc.text.fill"
+                      size={20}
+                      color={colors.tint}
+                    />
+                    <Text style={[styles.recipeName, { color: colors.text }]}>
+                      {recipes.find((r) => r.id === selectedRecipeId)?.name ||
+                        "Selected Recipe"}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <IconSymbol
+                      name="plus.circle"
+                      size={20}
+                      color={colors.icon}
+                    />
+                    <Text
+                      style={[styles.recipePlaceholder, { color: colors.icon }]}
+                    >
+                      Select a recipe for cost tracking
+                    </Text>
+                  </>
+                )}
+              </View>
+              <IconSymbol name="chevron.right" size={16} color={colors.icon} />
+            </TouchableOpacity>
+            {selectedRecipeId && (
+              <TouchableOpacity
+                style={styles.clearRecipe}
+                onPress={() => setSelectedRecipeId(null)}
+              >
+                <Text style={{ color: "#FF4444", fontSize: 13 }}>
+                  Remove recipe
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </ScrollView>
@@ -301,6 +354,85 @@ export default function ProductFormScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Recipe Picker Modal */}
+      <Modal
+        visible={showRecipePicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowRecipePicker(false)}
+      >
+        <View
+          style={[
+            styles.modalContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowRecipePicker(false)}>
+              <IconSymbol name="xmark" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Select Recipe
+            </Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          <FlatList
+            data={recipes}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.modalList}
+            ListEmptyComponent={
+              <View style={styles.emptyModal}>
+                <IconSymbol name="doc.text" size={48} color={colors.icon} />
+                <Text style={[styles.emptyText, { color: colors.icon }]}>
+                  No recipes yet
+                </Text>
+                <Text style={[styles.emptySubtext, { color: colors.icon }]}>
+                  Create recipes in the Recipes tab first
+                </Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.recipeOption,
+                  { borderColor: colors.icon },
+                  selectedRecipeId === item.id && {
+                    borderColor: colors.tint,
+                    borderWidth: 2,
+                  },
+                ]}
+                onPress={() => {
+                  setSelectedRecipeId(item.id);
+                  setShowRecipePicker(false);
+                }}
+              >
+                <View>
+                  <Text
+                    style={[styles.recipeOptionName, { color: colors.text }]}
+                  >
+                    {item.name}
+                  </Text>
+                  <Text
+                    style={[styles.recipeOptionDetails, { color: colors.icon }]}
+                  >
+                    Cost: ₱{item.total_cost.toFixed(2)} • {item.servings}{" "}
+                    servings
+                  </Text>
+                </View>
+                {selectedRecipeId === item.id && (
+                  <IconSymbol
+                    name="checkmark.circle.fill"
+                    size={24}
+                    color={colors.tint}
+                  />
+                )}
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -430,5 +562,79 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "600",
+  },
+  recipeSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 14,
+  },
+  recipeSelectorContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  recipeName: {
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  recipePlaceholder: {
+    fontSize: 15,
+  },
+  clearRecipe: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    paddingTop: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E0E0",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  modalList: {
+    padding: 16,
+  },
+  emptyModal: {
+    alignItems: "center",
+    padding: 40,
+    gap: 12,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  emptySubtext: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  recipeOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderWidth: 1,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  recipeOptionName: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  recipeOptionDetails: {
+    fontSize: 13,
+    marginTop: 4,
   },
 });
