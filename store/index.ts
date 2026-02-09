@@ -9,4 +9,5 @@ export { useIngredientStore } from "./ingredient.store";
 export { useProductStore } from "./product.store";
 export { useRecipeStore } from "./recipe.store";
 export { useSalesStore } from "./sales.store";
+export { useSettingsStore } from "./settings.store";
 
