@@ -137,10 +137,13 @@ export default function POSScreen() {
       activeOpacity={0.7}
     >
       {item.image_uri ? (
-        <Image
-          source={{ uri: item.image_uri }}
-          style={styles.productTileImage}
-        />
+        <>
+          <Image
+            source={{ uri: item.image_uri }}
+            style={styles.productTileImage}
+          />
+          <View style={styles.productTileOverlay} />
+        </>
       ) : null}
       <View style={styles.productHeader}>
         <View
@@ -450,7 +453,6 @@ export default function POSScreen() {
             </Text>
             <View style={{ width: 50 }} />
           </View>
-
           <View style={styles.checkoutBody}>
             <View
               style={[
@@ -581,7 +583,9 @@ export default function POSScreen() {
                 styles.changeContainer,
                 {
                   backgroundColor:
-                    changeAmount() >= 0 ? colors.card : "#FFEBEE",
+                    (parseFloat(amountInput) || 0) - total() >= 0
+                      ? colors.card
+                      : "#FFEBEE",
                 },
               ]}
             >
@@ -593,10 +597,15 @@ export default function POSScreen() {
               <Text
                 style={[
                   styles.changeValue,
-                  { color: changeAmount() >= 0 ? brand.primary : "#FF3B30" },
+                  {
+                    color:
+                      (parseFloat(amountInput) || 0) - total() >= 0
+                        ? brand.primary
+                        : "#FF3B30",
+                  },
                 ]}
               >
-                ₱{Math.abs(changeAmount()).toFixed(2)}
+                ₱{Math.abs((parseFloat(amountInput) || 0) - total()).toFixed(2)}
               </Text>
             </View>
           </View>
@@ -884,5 +893,9 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     resizeMode: "cover",
+  },
+  productTileOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.4)",
   },
 });

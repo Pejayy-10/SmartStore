@@ -10,12 +10,12 @@ import { useSettingsStore, type ThemeMode } from "@/store/settings.store";
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function SettingsScreen() {
@@ -178,7 +178,7 @@ export default function SettingsScreen() {
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <View style={styles.infoRow}>
             <Text style={[styles.infoLabel, { color: colors.text }]}>
-              Version
+              Versionn
             </Text>
             <Text style={[styles.infoValue, { color: colors.textTertiary }]}>
               1.0.0
@@ -187,7 +187,7 @@ export default function SettingsScreen() {
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <View style={styles.infoRow}>
             <Text style={[styles.infoLabel, { color: colors.text }]}>
-              Developer
+              Developerr
             </Text>
             <Text style={[styles.infoValue, { color: brand.primary }]}>
               Frandilbert

@@ -4,16 +4,16 @@
  */
 
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo } from "react";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    useColorScheme,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useColorScheme,
 } from "react-native";
 import { IconSymbol } from "../components/ui/icon-symbol";
 import { Colors, brand, radius } from "../constants/theme";
@@ -167,6 +167,7 @@ export default function ReportsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Stack.Screen options={{ headerShown: false }} />
       {/* Header */}
       <LinearGradient
         colors={[brand.primary, brand.primaryDark]}
