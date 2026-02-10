@@ -11,13 +11,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+    Alert,
     FlatList,
+    Modal,
     RefreshControl,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
@@ -28,9 +30,17 @@ export default function IngredientsScreen() {
   const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
-  const { ingredients, isLoading, fetchIngredients } = useIngredientStore();
+  const { ingredients, isLoading, fetchIngredients, updateStock } =
+    useIngredientStore();
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Stock modal state
+  const [stockModalVisible, setStockModalVisible] = useState(false);
+  const [stockModalType, setStockModalType] = useState<"in" | "out">("in");
+  const [stockModalIngredient, setStockModalIngredient] = useState<any>(null);
+  const [stockQuantity, setStockQuantity] = useState("");
+  const [stockNote, setStockNote] = useState("");
 
   // Initial fetch
   useEffect(() => {
@@ -53,6 +63,38 @@ export default function IngredientsScreen() {
   const handleAdd = () => {
     router.push("/ingredients/add");
   };
+
+  const openStockModal = (ingredient: any, type: "in" | "out") => {
+    setStockModalIngredient(ingredient);
+    setStockModalType(type);
+    setStockQuantity("");
+    setStockNote("");
+    setStockModalVisible(true);
+  };
+
+  const handleStockAdjust = useCallback(async () => {
+    const qty = parseFloat(stockQuantity) || 0;
+    if (qty <= 0) {
+      Alert.alert("Error", "Please enter a valid quantity");
+      return;
+    }
+
+    const change = stockModalType === "in" ? qty : -qty;
+    const success = await updateStock(stockModalIngredient.id, change);
+
+    if (success) {
+      setStockModalVisible(false);
+      await fetchIngredients();
+    } else {
+      Alert.alert("Error", "Failed to update stock");
+    }
+  }, [
+    stockQuantity,
+    stockModalType,
+    stockModalIngredient,
+    updateStock,
+    fetchIngredients,
+  ]);
 
   // Filter ingredients
   const filteredIngredients = useMemo(() => {
@@ -149,6 +191,34 @@ export default function IngredientsScreen() {
                 },
               ]}
             />
+          </View>
+
+          {/* Quick Stock Buttons */}
+          <View style={styles.stockButtons}>
+            <TouchableOpacity
+              style={[styles.stockBtn, { backgroundColor: "#E8F5E9" }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                openStockModal(item, "in");
+              }}
+            >
+              <IconSymbol name="plus" size={14} color="#2E7D32" />
+              <Text style={[styles.stockBtnText, { color: "#2E7D32" }]}>
+                Stock In
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.stockBtn, { backgroundColor: "#FFE5E5" }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                openStockModal(item, "out");
+              }}
+            >
+              <IconSymbol name="minus" size={14} color="#FF3B30" />
+              <Text style={[styles.stockBtnText, { color: "#FF3B30" }]}>
+                Stock Out
+              </Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Animated.View>
@@ -254,6 +324,112 @@ export default function IngredientsScreen() {
           ) : null
         }
       />
+
+      {/* Stock Adjustment Modal */}
+      <Modal
+        visible={stockModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setStockModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.stockModal,
+              { backgroundColor: colors.card },
+              shadows.soft,
+            ]}
+          >
+            <Text style={[styles.stockModalTitle, { color: colors.text }]}>
+              {stockModalType === "in" ? "Stock In" : "Stock Out"}
+            </Text>
+            {stockModalIngredient && (
+              <Text
+                style={[styles.stockModalSub, { color: colors.textSecondary }]}
+              >
+                {stockModalIngredient.name} — Current:{" "}
+                {stockModalIngredient.quantity_in_stock}{" "}
+                {stockModalIngredient.unit_type}
+              </Text>
+            )}
+
+            <View
+              style={[
+                styles.stockModalInput,
+                {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <TextInput
+                style={[styles.stockModalValue, { color: colors.text }]}
+                placeholder="Quantity"
+                placeholderTextColor={colors.textTertiary}
+                value={stockQuantity}
+                onChangeText={setStockQuantity}
+                keyboardType="decimal-pad"
+                autoFocus
+              />
+              {stockModalIngredient && (
+                <Text
+                  style={[
+                    styles.stockModalUnit,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  {stockModalIngredient.unit_type}
+                </Text>
+              )}
+            </View>
+
+            <TextInput
+              style={[
+                styles.stockModalNote,
+                {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="Note (optional)"
+              placeholderTextColor={colors.textTertiary}
+              value={stockNote}
+              onChangeText={setStockNote}
+            />
+
+            <View style={styles.stockModalActions}>
+              <TouchableOpacity
+                style={[
+                  styles.stockModalBtn,
+                  { backgroundColor: colors.background },
+                ]}
+                onPress={() => setStockModalVisible(false)}
+              >
+                <Text
+                  style={[styles.stockModalBtnText, { color: colors.text }]}
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.stockModalBtn,
+                  {
+                    backgroundColor:
+                      stockModalType === "in" ? "#2E7D32" : "#FF3B30",
+                  },
+                ]}
+                onPress={handleStockAdjust}
+              >
+                <Text style={[styles.stockModalBtnText, { color: "#FFFFFF" }]}>
+                  {stockModalType === "in" ? "Add Stock" : "Remove Stock"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -397,5 +573,86 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontWeight: "500",
+  },
+  stockButtons: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+  },
+  stockBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    gap: 6,
+  },
+  stockBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  stockModal: {
+    width: "100%",
+    borderRadius: radius.xl,
+    padding: 24,
+    gap: 16,
+  },
+  stockModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  stockModalSub: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  stockModalInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  stockModalValue: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  stockModalUnit: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  stockModalNote: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+  },
+  stockModalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 4,
+  },
+  stockModalBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
+    alignItems: "center",
+  },
+  stockModalBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

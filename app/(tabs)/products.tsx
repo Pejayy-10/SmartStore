@@ -11,16 +11,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-    useWindowDimensions,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
@@ -101,85 +101,72 @@ export default function ProductsScreen() {
         activeOpacity={0.7}
       >
         {item.image_uri ? (
-          <Image source={{ uri: item.image_uri }} style={styles.cardImage} />
+          <>
+            <Image source={{ uri: item.image_uri }} style={styles.cardImage} />
+            <LinearGradient
+              colors={["transparent", "rgba(0,0,0,0.8)"]}
+              style={StyleSheet.absoluteFillObject}
+            />
+          </>
         ) : null}
-        <View style={styles.cardHeader}>
-          <View
-            style={[
-              styles.iconContainer,
-              { backgroundColor: brand.primaryFaded },
-              item.image_uri && { opacity: 0 }, // Hide icon bg if image exists
-            ]}
-          >
-            {!item.image_uri && (
-              <IconSymbol name="tag.fill" size={20} color={brand.primary} />
-            )}
-          </View>
-          <View style={styles.priceTag}>
-            <Text style={[styles.priceText, { color: brand.primary }]}>
-              ₱{item.selling_price.toFixed(2)}
-            </Text>
-          </View>
-        </View>
 
-        <View style={styles.cardContent}>
-          <Text
-            style={[
-              styles.productName,
-              { color: item.image_uri ? "#FFFFFF" : colors.text },
-            ]}
-          >
-            {item.name}
-          </Text>
-          <Text
-            style={[
-              styles.productCategory,
-              { color: item.image_uri ? "#E0E0E0" : colors.textSecondary },
-            ]}
-          >
-            {item.category}
-          </Text>
-
-          {item.is_inventory_tracked === 1 && (
-            <View style={styles.stockContainer}>
+        <View style={styles.cardPadding}>
+          <View style={styles.cardHeader}>
+            {!item.image_uri ? (
               <View
                 style={[
-                  styles.stockBadge,
+                  styles.iconContainer,
+                  { backgroundColor: brand.primaryFaded },
+                ]}
+              >
+                <IconSymbol name="tag.fill" size={20} color={brand.primary} />
+              </View>
+            ) : (
+              <View style={{ flex: 1 }} /> // Spacer to push price tag to right
+            )}
+
+            <View style={styles.priceTag}>
+              <Text style={[styles.priceText, { color: brand.primary }]}>
+                ₱{item.selling_price.toFixed(2)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.cardContent}>
+            <Text
+              style={[
+                styles.productName,
+                { color: item.image_uri ? "#FFFFFF" : colors.text },
+              ]}
+            >
+              {item.name}
+            </Text>
+            <Text
+              style={[
+                styles.productCategory,
+                { color: item.image_uri ? "#E0E0E0" : colors.textSecondary },
+              ]}
+            >
+              {item.category
+                ? item.category.charAt(0).toUpperCase() + item.category.slice(1)
+                : "Uncategorized"}
+            </Text>
+
+            {item.is_inventory_tracked === 1 && (
+              <Text
+                style={[
+                  styles.stockText,
                   {
-                    backgroundColor:
-                      (item.quantity_in_stock || 0) < 10
-                        ? "#FFE5E5"
-                        : "#E8F5E9",
+                    color: item.image_uri
+                      ? "rgba(255,255,255,0.6)"
+                      : colors.textTertiary,
                   },
                 ]}
               >
-                <IconSymbol
-                  name={
-                    (item.quantity_in_stock || 0) < 10
-                      ? "exclamationmark.triangle.fill"
-                      : "checkmark.circle.fill"
-                  }
-                  size={12}
-                  color={
-                    (item.quantity_in_stock || 0) < 10 ? "#FF3B30" : "#2E7D32"
-                  }
-                />
-                <Text
-                  style={[
-                    styles.stockText,
-                    {
-                      color:
-                        (item.quantity_in_stock || 0) < 10
-                          ? "#FF3B30"
-                          : "#2E7D32",
-                    },
-                  ]}
-                >
-                  {item.quantity_in_stock || 0} in stock
-                </Text>
-              </View>
-            </View>
-          )}
+                Inventory Tracked
+              </Text>
+            )}
+          </View>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -421,10 +408,14 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: radius.lg,
-    padding: 16,
     borderWidth: 1,
+    overflow: "hidden", // Ensure image doesn't bleed
+  },
+  cardPadding: {
+    padding: 16,
+    flex: 1,
+    justifyContent: "space-between",
     gap: 12,
-    overflow: "hidden",
   },
   cardImage: {
     ...StyleSheet.absoluteFillObject,

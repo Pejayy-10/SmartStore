@@ -7,7 +7,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors, brand, radius, shadows } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useIngredientStore, useRecipeStore, useSettingsStore } from "@/store";
-import type { Ingredient } from "@/types";
+import type { Ingredient, UnitType } from "@/types";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -54,6 +54,7 @@ export default function AddRecipeScreen() {
   const [servings, setServings] = useState("1");
   const [recipeItems, setRecipeItems] = useState<RecipeItem[]>([]);
   const [showIngredientPicker, setShowIngredientPicker] = useState(false);
+  const [markupPercent, setMarkupPercent] = useState("30");
 
   // Calculate total cost
   const totalCost = recipeItems.reduce((sum, item) => {
@@ -62,6 +63,8 @@ export default function AddRecipeScreen() {
 
   const servingsNum = parseInt(servings) || 1;
   const costPerServing = totalCost / servingsNum;
+  const markupNum = parseFloat(markupPercent) || 0;
+  const suggestedSellingPrice = costPerServing * (1 + markupNum / 100);
 
   // Add ingredient
   const handleAddIngredient = useCallback(
@@ -131,7 +134,7 @@ export default function AddRecipeScreen() {
       items: recipeItems.map((item) => ({
         ingredient_id: item.ingredientId,
         quantity: item.quantity,
-        unit_type: item.unitType,
+        unit_type: item.unitType as UnitType,
       })),
     });
 
@@ -358,6 +361,36 @@ export default function AddRecipeScreen() {
             )}
           </View>
 
+          {/* Markup */}
+          {recipeItems.length > 0 && (
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Markup %
+              </Text>
+              <View
+                style={[
+                  styles.input,
+                  styles.priceInput,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                <TextInput
+                  style={[styles.markupValue, { color: colors.text }]}
+                  value={markupPercent}
+                  onChangeText={setMarkupPercent}
+                  keyboardType="decimal-pad"
+                  placeholder="30"
+                  placeholderTextColor={colors.textTertiary}
+                />
+                <Text
+                  style={[styles.markupUnit, { color: colors.textSecondary }]}
+                >
+                  %
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Cost Summary */}
           {recipeItems.length > 0 && (
             <View
@@ -380,6 +413,20 @@ export default function AddRecipeScreen() {
                 </Text>
                 <Text style={[styles.costPerServing, { color: brand.primary }]}>
                   ₱{costPerServing.toFixed(2)}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.costDivider,
+                  { backgroundColor: brand.primary + "33" },
+                ]}
+              />
+              <View style={styles.costRow}>
+                <Text style={[styles.costLabel, { color: brand.primary }]}>
+                  Suggested Selling Price
+                </Text>
+                <Text style={[styles.suggestedPrice, { color: brand.primary }]}>
+                  ₱{suggestedSellingPrice.toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -661,6 +708,29 @@ const styles = StyleSheet.create({
   },
   costPerServing: {
     fontSize: 22,
+    fontWeight: "800",
+  },
+  priceInput: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  markupValue: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  markupUnit: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  costDivider: {
+    height: 1,
+    marginVertical: 4,
+  },
+  suggestedPrice: {
+    fontSize: 24,
     fontWeight: "800",
   },
   saveButton: {

@@ -55,20 +55,16 @@ export default function POSScreen() {
   const [amountInput, setAmountInput] = useState("");
 
   // App store
-  const { isInitialized, isInitializing, initialize, initError } =
-    useAppStore();
+  const { isInitialized, isInitializing, initialize } = useAppStore();
   const { products, fetchForPOS } = useProductStore();
   const {
     items,
     paymentMethod,
     isProcessing,
-    subtotal,
-    totalDiscount,
     total,
     changeAmount,
     itemCount,
     addItem,
-    removeItem,
     incrementQuantity,
     decrementQuantity,
     setPaymentMethod,
@@ -142,47 +138,58 @@ export default function POSScreen() {
             source={{ uri: item.image_uri }}
             style={styles.productTileImage}
           />
-          <View style={styles.productTileOverlay} />
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.75)"]}
+            style={StyleSheet.absoluteFillObject}
+          />
         </>
       ) : null}
-      <View style={styles.productHeader}>
-        <View
-          style={[
-            styles.productCategory,
-            { backgroundColor: brand.primaryFaded },
-          ]}
-        >
-          <Text style={[styles.productCategoryText, { color: brand.primary }]}>
-            {item.category.slice(0, 10)}
+
+      <View style={styles.productTileContent}>
+        <View style={styles.productHeader}>
+          <View
+            style={[
+              styles.productCategory,
+              { backgroundColor: brand.primaryFaded },
+            ]}
+          >
+            <Text
+              style={[styles.productCategoryText, { color: brand.primary }]}
+            >
+              {item.category.slice(0, 10)}
+            </Text>
+          </View>
+          <Text style={[styles.productPrice, { color: brand.primary }]}>
+            ₱{item.selling_price.toFixed(0)}
           </Text>
         </View>
-        <Text style={[styles.productPrice, { color: brand.primary }]}>
-          ₱{item.selling_price.toFixed(0)}
-        </Text>
+
+        <View>
+          <Text
+            style={[
+              styles.productName,
+              { color: item.image_uri ? "#FFFFFF" : colors.text },
+            ]}
+            numberOfLines={2}
+          >
+            {item.name}
+          </Text>
+          {item.is_inventory_tracked && (
+            <Text
+              style={[
+                styles.stockLabel,
+                {
+                  color: item.image_uri
+                    ? "rgba(255,255,255,0.7)"
+                    : colors.textTertiary,
+                },
+              ]}
+            >
+              Tracked
+            </Text>
+          )}
+        </View>
       </View>
-      <Text
-        style={[
-          styles.productName,
-          { color: item.image_uri ? "#FFFFFF" : colors.text },
-        ]}
-        numberOfLines={2}
-      >
-        {item.name}
-      </Text>
-      {item.is_inventory_tracked && (
-        <Text
-          style={[
-            styles.stockLabel,
-            {
-              color: item.image_uri
-                ? "rgba(255,255,255,0.7)"
-                : colors.textTertiary,
-            },
-          ]}
-        >
-          Tracked
-        </Text>
-      )}
     </TouchableOpacity>
   );
 
@@ -674,10 +681,14 @@ const styles = StyleSheet.create({
   productTile: {
     flex: 1,
     margin: 6,
-    padding: 12,
     borderRadius: radius.lg,
     borderWidth: 1,
     minHeight: 140,
+    overflow: "hidden", // Essential for clipping image
+  },
+  productTileContent: {
+    flex: 1,
+    padding: 20,
     justifyContent: "space-between",
   },
   productHeader: {

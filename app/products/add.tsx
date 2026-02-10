@@ -264,7 +264,7 @@ export default function AddProductScreen() {
           {/* Price */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.text }]}>
-              Selling Price *
+              Final Selling Price *
             </Text>
             <View
               style={[
@@ -285,6 +285,19 @@ export default function AddProductScreen() {
                 keyboardType="decimal-pad"
               />
             </View>
+            {recipeId &&
+              (() => {
+                const linkedRecipe = recipes.find((r) => r.id === recipeId);
+                if (linkedRecipe) {
+                  return (
+                    <Text style={[styles.helpText, { color: brand.primary }]}>
+                      Recipe cost: ₱{linkedRecipe.cost_per_serving.toFixed(2)}
+                      /serving
+                    </Text>
+                  );
+                }
+                return null;
+              })()}
           </View>
 
           {/* Category */}
