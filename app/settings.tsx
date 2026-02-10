@@ -209,13 +209,6 @@ export default function SettingsScreen() {
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
         )}
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.textTertiary }]}>
-            Made by Frandilbert
-          </Text>
-        </View>
       </ScrollView>
     </View>
   );

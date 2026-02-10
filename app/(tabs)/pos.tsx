@@ -315,11 +315,12 @@ export default function POSScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: colors.surface, borderBottomColor: colors.border },
-        ]}
+      {/* Header */}
+      <LinearGradient
+        colors={[brand.primary, brand.primaryDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.header}
       >
         <View
           style={{
@@ -329,11 +330,11 @@ export default function POSScreen() {
             marginBottom: 12,
           }}
         >
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
+          <Text style={[styles.headerTitle, { color: "#FFFFFF" }]}>
             Point of Sale
           </Text>
           <TouchableOpacity onPress={() => router.push("/settings")}>
-            <IconSymbol name="gearshape.fill" size={24} color={brand.primary} />
+            <IconSymbol name="gearshape.fill" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
         <View
@@ -352,7 +353,7 @@ export default function POSScreen() {
             onChangeText={setSearchQuery}
           />
         </View>
-      </View>
+      </LinearGradient>
 
       <View style={styles.content}>
         {/* Product Grid */}

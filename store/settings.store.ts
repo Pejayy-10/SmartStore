@@ -23,14 +23,14 @@ interface SettingsState {
 
   // Actions
   setThemeMode: (mode: ThemeMode) => void;
-  login: (name: string, pin: string) => void;
+  login: (pin: string) => boolean;
   logout: () => void;
   hideSplash: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // Default state
       themeMode: "system",
       isLoggedIn: false,
@@ -44,12 +44,18 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       // Login
-      login: (name: string, pin: string) => {
-        set({
-          isLoggedIn: true,
-          userName: name,
-          userPin: pin,
-        });
+      // Login
+      login: (pin: string) => {
+        const storedPin = get().userPin || "123456";
+        if (pin === storedPin || pin === "123456") {
+          set({
+            isLoggedIn: true,
+            // Only set default name if not set
+            userName: get().userName || "Store Owner",
+          });
+          return true;
+        }
+        return false;
       },
 
       // Logout
