@@ -1,227 +1,225 @@
 /**
- * SmartStore Login Screen
- * PIN-based authentication with animated UI
+ * SmartStore Professional Login Screen
  */
 
-import { brand, shadows } from "@/constants/theme";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { brand, Colors, shadows } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useSettingsStore } from "@/store";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useRef, useState } from "react";
+import { StatusBar } from "expo-status-bar";
+import { useCallback, useState } from "react";
 import {
-    Animated,
+    ActivityIndicator,
+    Alert,
     Dimensions,
-    KeyboardAvoidingView,
-    Platform,
-    StatusBar,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
+import Animated, {
+    FadeInDown,
+    FadeInUp,
+    useAnimatedStyle,
+    useSharedValue,
+    withSequence,
+    withTiming
+} from "react-native-reanimated";
 
 const { width } = Dimensions.get("window");
+const PIN_LENGTH = 6;
 
 export default function LoginScreen() {
-  const { login } = useSettingsStore();
+  const systemColorScheme = useColorScheme() ?? "light";
+  const { themeMode, login } = useSettingsStore();
+  const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
+  const colors = Colors[colorScheme];
 
-  const [name, setName] = useState("");
   const [pin, setPin] = useState("");
-  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   // Animation values
-  const shakeAnim = useRef(new Animated.Value(0)).current;
-  const buttonScale = useRef(new Animated.Value(1)).current;
-  const cardOpacity = useRef(new Animated.Value(0)).current;
-  const cardTranslate = useRef(new Animated.Value(50)).current;
+  const shakeTranslateX = useSharedValue(0);
 
-  // Animate card on mount
-  useState(() => {
-    Animated.parallel([
-      Animated.timing(cardOpacity, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(cardTranslate, {
-        toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
+  const handlePress = useCallback(
+    (key: string) => {
+      if (isLoading) return;
+
+      if (key === "backspace") {
+        setPin((prev) => prev.slice(0, -1));
+      } else if (pin.length < PIN_LENGTH) {
+        const newPin = pin + key;
+        setPin(newPin);
+
+        if (newPin.length === PIN_LENGTH) {
+          handleLogin(newPin);
+        }
+      }
+    },
+    [pin, isLoading],
+  );
+
+  const handleLogin = async (enteredPin: string) => {
+    setIsLoading(true);
+    // Simulate API delay for polish
+    setTimeout(async () => {
+      const success = await login(enteredPin);
+      if (!success) {
+        setIsLoading(false);
+        setPin("");
+        triggerShake();
+        Alert.alert("Invalid PIN", "Please try again (Default: 123456)");
+      }
+    }, 500);
+  };
+
+  const triggerShake = () => {
+    shakeTranslateX.value = withSequence(
+      withTiming(-10, { duration: 50 }),
+      withTiming(10, { duration: 50 }),
+      withTiming(-10, { duration: 50 }),
+      withTiming(10, { duration: 50 }),
+      withTiming(0, { duration: 50 }),
+    );
+  };
+
+  const shakeStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: shakeTranslateX.value }],
+    };
   });
 
-  // Shake animation for errors
-  const shake = useCallback(() => {
-    Animated.sequence([
-      Animated.timing(shakeAnim, {
-        toValue: 10,
-        duration: 50,
-        useNativeDriver: true,
-      }),
-      Animated.timing(shakeAnim, {
-        toValue: -10,
-        duration: 50,
-        useNativeDriver: true,
-      }),
-      Animated.timing(shakeAnim, {
-        toValue: 10,
-        duration: 50,
-        useNativeDriver: true,
-      }),
-      Animated.timing(shakeAnim, {
-        toValue: 0,
-        duration: 50,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [shakeAnim]);
-
-  // Button press animation
-  const handlePressIn = useCallback(() => {
-    Animated.spring(buttonScale, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
-  }, [buttonScale]);
-
-  const handlePressOut = useCallback(() => {
-    Animated.spring(buttonScale, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-  }, [buttonScale]);
-
-  // Handle login
-  const handleLogin = useCallback(() => {
-    setError("");
-
-    if (!name.trim()) {
-      setError("Please enter your name");
-      shake();
-      return;
-    }
-
-    if (pin.length < 4) {
-      setError("PIN must be at least 4 digits");
-      shake();
-      return;
-    }
-
-    // For demo, any name and valid PIN works
-    login(name.trim(), pin);
-  }, [name, pin, login, shake]);
+  const renderPinDot = (index: number) => {
+    const isFilled = index < pin.length;
+    return (
+      <View
+        key={index}
+        style={[
+          styles.pinDot,
+          {
+            borderColor: isFilled ? brand.primary : colors.border,
+            backgroundColor: isFilled ? brand.primary : "transparent",
+          },
+        ]}
+      />
+    );
+  };
 
   return (
-    <LinearGradient
-      colors={[brand.primaryDark, brand.primary]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
-      <StatusBar barStyle="light-content" backgroundColor={brand.primaryDark} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
 
-      {/* Decorative elements */}
-      <View style={styles.decorativeCircle1} />
-      <View style={styles.decorativeCircle2} />
+      {/* Background decoration */}
+      <View style={styles.backgroundDecor} pointerEvents="none">
+        <LinearGradient
+          colors={[brand.primaryFaded, "transparent"]}
+          style={styles.gradient}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.content}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoIcon}>🛒</Text>
-          </View>
-          <Text style={styles.title}>SmartStore</Text>
-          <Text style={styles.subtitle}>Welcome back!</Text>
-        </View>
-
-        {/* Login Card */}
+      <View style={styles.content}>
+        {/* Logo Section */}
         <Animated.View
-          style={[
-            styles.card,
-            {
-              opacity: cardOpacity,
-              transform: [
-                { translateY: cardTranslate },
-                { translateX: shakeAnim },
-              ],
-            },
-          ]}
+          entering={FadeInUp.delay(200).springify()}
+          style={styles.logoSection}
         >
-          {/* Name Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Your Name</Text>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputIcon}>👤</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your name"
-                placeholderTextColor="#999"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-              />
-            </View>
-          </View>
-
-          {/* PIN Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>PIN Code</Text>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputIcon}>🔒</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter 4-digit PIN"
-                placeholderTextColor="#999"
-                value={pin}
-                onChangeText={setPin}
-                keyboardType="number-pad"
-                maxLength={6}
-                secureTextEntry
-              />
-            </View>
-          </View>
-
-          {/* Error Message */}
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          {/* Login Button */}
-          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={handleLogin}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-              activeOpacity={1}
+          <View style={[styles.logoContainer, shadows.glow]}>
+            <LinearGradient
+              colors={[brand.primary, brand.primaryDark]}
+              style={styles.logoGradient}
             >
-              <LinearGradient
-                colors={[brand.primary, brand.primaryDark]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.loginButtonGradient}
-              >
-                <Text style={styles.loginButtonText}>Sign In</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
-
-          {/* Demo hint */}
-          <Text style={styles.demoHint}>
-            Demo: Enter any name and 4+ digit PIN
+              <IconSymbol name="cart.fill" size={40} color="#FFFFFF" />
+            </LinearGradient>
+          </View>
+          <Text style={[styles.appName, { color: colors.text }]}>
+            SmartStore
+          </Text>
+          <Text style={[styles.tagline, { color: colors.textSecondary }]}>
+            Professional POS System
           </Text>
         </Animated.View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Made with ❤️ by</Text>
-          <Text style={styles.footerAuthor}>Frandilbert</Text>
-        </View>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+        {/* PIN Display */}
+        <Animated.View
+          style={[styles.pinDisplayContainer, shakeStyle]}
+          entering={FadeInDown.delay(400).springify()}
+        >
+          <Text style={[styles.enterPinText, { color: colors.textSecondary }]}>
+            Enter Access PIN
+          </Text>
+          <View style={styles.pinDotsContainer}>
+            {Array.from({ length: PIN_LENGTH }).map((_, i) => renderPinDot(i))}
+          </View>
+        </Animated.View>
+
+        {/* Keypad */}
+        <Animated.View
+          style={styles.keypad}
+          entering={FadeInDown.delay(600).springify()}
+        >
+          {[
+            ["1", "2", "3"],
+            ["4", "5", "6"],
+            ["7", "8", "9"],
+            ["empty", "0", "backspace"],
+          ].map((row, rowIndex) => (
+            <View key={rowIndex} style={styles.keypadRow}>
+              {row.map((key) => {
+                if (key === "empty")
+                  return <View key={key} style={styles.key} />;
+
+                if (key === "backspace") {
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={styles.key}
+                      onPress={() => handlePress(key)}
+                      disabled={isLoading}
+                    >
+                      <IconSymbol
+                        name="chevron.left"
+                        size={28}
+                        color={colors.text}
+                      />
+                    </TouchableOpacity>
+                  );
+                }
+
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[
+                      styles.key,
+                      { backgroundColor: colors.card },
+                      shadows.soft,
+                    ]}
+                    onPress={() => handlePress(key)}
+                    disabled={isLoading}
+                  >
+                    <Text style={[styles.keyText, { color: colors.text }]}>
+                      {key}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+        </Animated.View>
+
+        {/* Loading Overlay */}
+        {isLoading && (
+          <View
+            style={[styles.loadingOverlay, { backgroundColor: colors.overlay }]}
+          >
+            <ActivityIndicator size="large" color="#FFFFFF" />
+            <Text style={styles.loadingText}>Authenticating...</Text>
+          </View>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -229,131 +227,98 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  backgroundDecor: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: -1,
+  },
+  gradient: {
+    height: 300,
+    width: "100%",
+  },
   content: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "space-between",
+    paddingVertical: 60,
     paddingHorizontal: 24,
   },
-  decorativeCircle1: {
-    position: "absolute",
-    top: -80,
-    right: -80,
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-  },
-  decorativeCircle2: {
-    position: "absolute",
-    bottom: 100,
-    left: -60,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-  },
-  header: {
+  logoSection: {
     alignItems: "center",
-    marginBottom: 40,
+    marginTop: 20,
   },
   logoContainer: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-    ...shadows.hard,
-  },
-  logoIcon: {
-    fontSize: 45,
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "rgba(255, 255, 255, 0.85)",
-  },
-  card: {
+    padding: 4,
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
-    padding: 28,
-    ...shadows.hard,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 8,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F5F5F7",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    borderWidth: 2,
-    borderColor: "#F5F5F7",
-  },
-  inputIcon: {
-    fontSize: 18,
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 16,
-    fontSize: 16,
-    color: "#1C1C1E",
-  },
-  errorText: {
-    color: "#FF3B30",
-    fontSize: 13,
-    textAlign: "center",
     marginBottom: 16,
-    fontWeight: "500",
   },
-  loginButton: {
-    borderRadius: 14,
-    overflow: "hidden",
-    ...shadows.glow,
-  },
-  loginButtonGradient: {
-    paddingVertical: 18,
+  logoGradient: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    justifyContent: "center",
     alignItems: "center",
   },
-  loginButtonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
+  appName: {
+    fontSize: 28,
+    fontWeight: "800",
     letterSpacing: 0.5,
   },
-  demoHint: {
-    textAlign: "center",
-    color: "#999",
-    fontSize: 12,
-    marginTop: 16,
+  tagline: {
+    fontSize: 15,
+    marginTop: 4,
+    fontWeight: "500",
   },
-  footer: {
+  pinDisplayContainer: {
     alignItems: "center",
-    marginTop: 40,
+    gap: 20,
   },
-  footerText: {
+  enterPinText: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.7)",
-    marginBottom: 4,
+    fontWeight: "600",
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
-  footerAuthor: {
-    fontSize: 16,
-    fontWeight: "700",
+  pinDotsContainer: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  pinDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+  },
+  keypad: {
+    gap: 20,
+    paddingHorizontal: 20,
+  },
+  keypadRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 20,
+  },
+  key: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  keyText: {
+    fontSize: 28,
+    fontWeight: "500",
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+    backdropFilter: "blur(10px)",
+  },
+  loadingText: {
     color: "#FFFFFF",
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

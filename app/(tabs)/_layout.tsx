@@ -1,15 +1,14 @@
-import { Tabs, useRouter } from "expo-router";
+import { Tabs } from "expo-router";
 import React from "react";
-import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { brand, Colors, shadows } from "@/constants/theme";
+import { brand, Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useSettingsStore } from "@/store";
 
 export default function TabLayout() {
-  const router = useRouter();
   const systemColorScheme = useColorScheme();
   const { themeMode } = useSettingsStore();
 
@@ -21,21 +20,6 @@ export default function TabLayout() {
 
   return (
     <View style={styles.container}>
-      {/* Settings button */}
-      <TouchableOpacity
-        style={[
-          styles.settingsButton,
-          {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-          },
-          shadows.soft,
-        ]}
-        onPress={() => router.push("/settings")}
-      >
-        <IconSymbol name="gear" size={22} color={brand.primary} />
-      </TouchableOpacity>
-
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: brand.primary,
@@ -56,20 +40,6 @@ export default function TabLayout() {
           tabBarButton: HapticTab,
         }}
       >
-        {/* Hide default screens */}
-        <Tabs.Screen
-          name="index"
-          options={{
-            href: null, // Hide from tab bar
-          }}
-        />
-        <Tabs.Screen
-          name="explore"
-          options={{
-            href: null, // Hide from tab bar
-          }}
-        />
-
         {/* Main app screens */}
         <Tabs.Screen
           name="pos"
@@ -144,18 +114,6 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  settingsButton: {
-    position: "absolute",
-    top: 56,
-    right: 16,
-    zIndex: 100,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
   },
   iconContainer: {
     alignItems: "center",

@@ -1,27 +1,25 @@
 /**
- * SmartStore Ingredients Screen
- * Professional design with orange theme
+ * SmartStore Ingredients (Stock) Screen
+ * Inventory management with professional UI
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors, brand, radius, shadows } from "@/constants/theme";
+import { Colors, brand, radius, shadows, spacing } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAppStore, useIngredientStore, useSettingsStore } from "@/store";
-import type { Ingredient } from "@/types";
+import { useIngredientStore, useSettingsStore } from "@/store";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
     FlatList,
     RefreshControl,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 export default function IngredientsScreen() {
   const router = useRouter();
@@ -30,169 +28,132 @@ export default function IngredientsScreen() {
   const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
+  const { ingredients, isLoading, fetchIngredients } = useIngredientStore();
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // App store for initialization
-  const { isInitialized, isInitializing, initialize, initError } =
-    useAppStore();
-
-  // Ingredient store
-  const {
-    ingredients,
-    lowStockIngredients,
-    isLoading,
-    error,
-    searchQuery,
-    fetchIngredients,
-    fetchLowStock,
-    searchIngredients,
-    deleteIngredient,
-    clearError,
-  } = useIngredientStore();
-
-  // Initialize database on mount
+  // Initial fetch
   useEffect(() => {
-    if (!isInitialized && !isInitializing) {
-      initialize();
-    }
-  }, [isInitialized, isInitializing, initialize]);
+    fetchIngredients();
+  }, [fetchIngredients]);
 
-  // Fetch ingredients when initialized
-  useEffect(() => {
-    if (isInitialized) {
-      fetchIngredients();
-      fetchLowStock();
-    }
-  }, [isInitialized, fetchIngredients, fetchLowStock]);
-
-  // Handle refresh
-  const handleRefresh = useCallback(async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchIngredients();
-    await fetchLowStock();
     setRefreshing(false);
-  }, [fetchIngredients, fetchLowStock]);
+  }, [fetchIngredients]);
 
-  // Handle delete
-  const handleDelete = useCallback(
-    (ingredient: Ingredient) => {
-      Alert.alert(
-        "Delete Ingredient",
-        `Are you sure you want to delete "${ingredient.name}"?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: async () => {
-              const success = await deleteIngredient(ingredient.id);
-              if (!success) {
-                Alert.alert("Error", "Failed to delete ingredient");
-              }
-            },
-          },
-        ],
-      );
-    },
-    [deleteIngredient],
-  );
+  const handleEdit = (ingredient: any) => {
+    router.push({
+      pathname: "/ingredients/[id]",
+      params: { id: ingredient.id },
+    });
+  };
 
-  // Handle add
-  const handleAdd = useCallback(() => {
+  const handleAdd = () => {
     router.push("/ingredients/add");
-  }, [router]);
+  };
 
-  // Handle edit
-  const handleEdit = useCallback(
-    (ingredient: Ingredient) => {
-      router.push(`/ingredients/${ingredient.id}`);
-    },
-    [router],
-  );
+  // Filter ingredients
+  const filteredIngredients = useMemo(() => {
+    if (!searchQuery.trim()) return ingredients;
+    return ingredients.filter((i) =>
+      i.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [ingredients, searchQuery]);
 
-  // Render ingredient item
-  const renderIngredient = ({ item }: { item: Ingredient }) => {
+  // Statistics
+  const lowStockCount = useMemo(() => {
+    return ingredients.filter(
+      (i) => i.quantity_in_stock <= i.low_stock_threshold,
+    ).length;
+  }, [ingredients]);
+
+  const renderItem = ({ item, index }: { item: any; index: number }) => {
     const isLowStock = item.quantity_in_stock <= item.low_stock_threshold;
 
     return (
-      <TouchableOpacity
-        style={[
-          styles.ingredientCard,
-          { backgroundColor: colors.card, borderColor: colors.border },
-          shadows.soft,
-        ]}
-        onPress={() => handleEdit(item)}
-        activeOpacity={0.7}
+      <Animated.View
+        entering={FadeInDown.delay(index * 30).springify()}
+        style={{ marginBottom: spacing.md }}
       >
-        <View style={styles.ingredientInfo}>
-          <View style={styles.ingredientHeader}>
-            <Text style={[styles.ingredientName, { color: colors.text }]}>
-              {item.name}
-            </Text>
-            {isLowStock && (
-              <View style={styles.lowStockBadge}>
-                <Text style={styles.lowStockText}>LOW</Text>
+        <TouchableOpacity
+          style={[
+            styles.card,
+            { backgroundColor: colors.card, borderColor: colors.border },
+            shadows.soft,
+            isLowStock && { borderColor: "#FF3B30", borderWidth: 1 },
+          ]}
+          onPress={() => handleEdit(item)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardContent}>
+            <View style={styles.itemInfo}>
+              <View
+                style={[
+                  styles.iconContainer,
+                  {
+                    backgroundColor: isLowStock
+                      ? "#FFE5E5"
+                      : brand.primaryFaded,
+                  },
+                ]}
+              >
+                <IconSymbol
+                  name={
+                    isLowStock
+                      ? "exclamationmark.triangle.fill"
+                      : "cube.box.fill"
+                  }
+                  size={20}
+                  color={isLowStock ? "#FF3B30" : brand.primary}
+                />
               </View>
-            )}
-          </View>
-          <View style={styles.ingredientMeta}>
-            <View
-              style={[styles.metaChip, { backgroundColor: brand.primaryFaded }]}
-            >
-              <Text style={[styles.metaChipText, { color: brand.primary }]}>
-                {item.quantity_in_stock} {item.unit_type}
+              <View>
+                <Text style={[styles.itemName, { color: colors.text }]}>
+                  {item.name}
+                </Text>
+                <Text
+                  style={[styles.itemSupplier, { color: colors.textSecondary }]}
+                >
+                  {item.supplier || "Unknown Supplier"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.stockInfo}>
+              <Text
+                style={[
+                  styles.stockValue,
+                  { color: isLowStock ? "#FF3B30" : colors.text },
+                ]}
+              >
+                {item.quantity_in_stock} {item.unit}
+              </Text>
+              <Text style={[styles.costValue, { color: colors.textTertiary }]}>
+                ₱{item.cost_per_unit.toFixed(2)}/{item.unit}
               </Text>
             </View>
-            <Text style={[styles.priceText, { color: colors.textSecondary }]}>
-              ₱{item.cost_per_unit.toFixed(2)}/{item.unit_type}
-            </Text>
           </View>
-          {item.supplier && (
-            <Text style={[styles.supplierText, { color: colors.textTertiary }]}>
-              Supplier: {item.supplier}
-            </Text>
-          )}
-        </View>
 
-        <TouchableOpacity
-          onPress={() => handleDelete(item)}
-          style={styles.deleteButton}
-        >
-          <IconSymbol name="trash" size={18} color="#FF3B30" />
+          {/* Progress Bar for Stock */}
+          <View
+            style={[styles.progressBarBg, { backgroundColor: colors.border }]}
+          >
+            <View
+              style={[
+                styles.progressBarFill,
+                {
+                  width: `${Math.min((item.quantity_in_stock / (item.low_stock_threshold * 3)) * 100, 100)}%`,
+                  backgroundColor: isLowStock ? "#FF3B30" : "#34C759",
+                },
+              ]}
+            />
+          </View>
         </TouchableOpacity>
-      </TouchableOpacity>
+      </Animated.View>
     );
   };
-
-  // Show loading state
-  if (isInitializing) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={brand.primary} />
-        <Text style={[styles.loadingText, { color: colors.text }]}>
-          Loading...
-        </Text>
-      </View>
-    );
-  }
-
-  // Show init error
-  if (initError) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF3B30" />
-        <Text style={[styles.errorText, { color: colors.text }]}>
-          {initError}
-        </Text>
-        <TouchableOpacity
-          style={[styles.retryButton, { backgroundColor: brand.primary }]}
-          onPress={initialize}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -204,103 +165,93 @@ export default function IngredientsScreen() {
         style={styles.header}
       >
         <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.title}>Ingredients</Text>
-            <Text style={styles.subtitle}>
-              {ingredients.length} items in stock
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+          <Text style={styles.title}>Inventory</Text>
+          <TouchableOpacity
+            style={[styles.addButton, shadows.soft]}
+            onPress={handleAdd}
+          >
             <IconSymbol name="plus" size={20} color={brand.primary} />
+            <Text style={styles.addButtonText}>Stock In</Text>
           </TouchableOpacity>
         </View>
-      </LinearGradient>
 
-      {/* Search Bar */}
-      <View style={styles.searchWrapper}>
+        {/* Stats Row */}
+        <View style={styles.statsRow}>
+          <View
+            style={[
+              styles.statBadge,
+              { backgroundColor: "rgba(255,255,255,0.2)" },
+            ]}
+          >
+            <Text style={styles.statLabel}>Total Items</Text>
+            <Text style={styles.statValue}>{ingredients.length}</Text>
+          </View>
+          <View
+            style={[
+              styles.statBadge,
+              {
+                backgroundColor:
+                  lowStockCount > 0 ? "#FF3B30" : "rgba(255,255,255,0.2)",
+              },
+            ]}
+          >
+            <Text style={styles.statLabel}>Low Stock</Text>
+            <Text style={styles.statValue}>{lowStockCount}</Text>
+          </View>
+        </View>
+
+        {/* Search Bar */}
         <View
           style={[
-            styles.searchContainer,
-            { backgroundColor: colors.card, borderColor: colors.border },
+            styles.searchBar,
+            { backgroundColor: colors.background },
             shadows.soft,
           ]}
         >
-          <IconSymbol name="magnifyingglass" size={18} color={colors.icon} />
+          <IconSymbol
+            name="magnifyingglass"
+            size={18}
+            color={colors.textTertiary}
+          />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
             placeholder="Search ingredients..."
             placeholderTextColor={colors.textTertiary}
             value={searchQuery}
-            onChangeText={searchIngredients}
+            onChangeText={setSearchQuery}
           />
         </View>
-      </View>
+      </LinearGradient>
 
-      {/* Low Stock Alert */}
-      {lowStockIngredients.length > 0 && (
-        <View style={[styles.alertBanner, shadows.soft]}>
-          <IconSymbol
-            name="exclamationmark.triangle"
-            size={18}
-            color="#FFFFFF"
-          />
-          <Text style={styles.alertText}>
-            {lowStockIngredients.length} ingredient
-            {lowStockIngredients.length > 1 ? "s" : ""} running low
-          </Text>
-        </View>
-      )}
-
-      {/* Error Display */}
-      {error && (
-        <TouchableOpacity style={styles.errorBanner} onPress={clearError}>
-          <Text style={styles.errorBannerText}>{error}</Text>
-          <Text style={styles.dismissText}>Tap to dismiss</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Ingredients List */}
+      {/* List */}
       <FlatList
-        data={ingredients}
-        renderItem={renderIngredient}
+        data={filteredIngredients}
+        renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={handleRefresh}
+            onRefresh={onRefresh}
             tintColor={brand.primary}
           />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            {isLoading ? (
-              <ActivityIndicator size="large" color={brand.primary} />
-            ) : (
-              <>
-                <View
-                  style={[
-                    styles.emptyIcon,
-                    { backgroundColor: brand.primaryFaded },
-                  ]}
-                >
-                  <IconSymbol
-                    name="leaf.fill"
-                    size={40}
-                    color={brand.primary}
-                  />
-                </View>
-                <Text style={[styles.emptyText, { color: colors.text }]}>
-                  No ingredients yet
-                </Text>
-                <Text
-                  style={[styles.emptySubtext, { color: colors.textSecondary }]}
-                >
-                  Tap the + button to add your first ingredient
-                </Text>
-              </>
-            )}
-          </View>
+          !isLoading ? (
+            <View style={styles.emptyState}>
+              <IconSymbol
+                name="cube.box.fill"
+                size={48}
+                color={colors.textTertiary}
+              />
+              <Text
+                style={[styles.emptyStateText, { color: colors.textSecondary }]}
+              >
+                Inventory is empty
+              </Text>
+            </View>
+          ) : null
         }
       />
     </View>
@@ -311,22 +262,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    gap: 16,
-  },
   header: {
-    paddingTop: 56,
+    paddingTop: 60,
     paddingBottom: 24,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
   },
   headerContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 16,
   },
   title: {
     fontSize: 28,
@@ -334,169 +281,121 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 4,
-  },
   addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#FFFFFF",
-    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    gap: 6,
+  },
+  addButtonText: {
+    color: brand.primary,
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  statsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  statBadge: {
+    flex: 1,
+    padding: 12,
+    borderRadius: radius.lg,
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
   },
-  searchWrapper: {
-    padding: 16,
-    marginTop: -12,
+  statLabel: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 13,
+    opacity: 0.9,
   },
-  searchContainer: {
+  statValue: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 18,
+  },
+  searchBar: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    gap: 12,
+    height: 48,
+    borderRadius: radius.full,
+    gap: 10,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-  },
-  alertBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FF9500",
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: radius.md,
-    gap: 10,
-  },
-  alertText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  errorBanner: {
-    backgroundColor: "#FF3B30",
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: radius.md,
-  },
-  errorBannerText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  dismissText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    opacity: 0.8,
-    marginTop: 4,
+    height: "100%",
   },
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 100,
   },
-  ingredientCard: {
+  card: {
+    borderRadius: radius.lg,
+    padding: 16,
+    borderWidth: 1,
+  },
+  cardContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
-    marginBottom: 10,
-    borderRadius: radius.lg,
-    borderWidth: 1,
+    marginBottom: 12,
   },
-  ingredientInfo: {
-    flex: 1,
-  },
-  ingredientHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 8,
-  },
-  ingredientName: {
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  ingredientMeta: {
+  itemInfo: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    flex: 1,
   },
-  metaChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.sm,
-  },
-  metaChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  priceText: {
-    fontSize: 14,
-  },
-  supplierText: {
-    fontSize: 12,
-    marginTop: 8,
-  },
-  lowStockBadge: {
-    backgroundColor: "#FF3B30",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.sm,
-  },
-  lowStockText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  deleteButton: {
-    padding: 10,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingTop: 60,
-    gap: 16,
-  },
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
   },
-  emptyText: {
-    fontSize: 18,
+  itemName: {
+    fontSize: 16,
     fontWeight: "700",
   },
-  emptySubtext: {
-    fontSize: 14,
-    textAlign: "center",
-    paddingHorizontal: 40,
+  itemSupplier: {
+    fontSize: 12,
   },
-  loadingText: {
+  stockInfo: {
+    alignItems: "flex-end",
+  },
+  stockValue: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  costValue: {
+    fontSize: 12,
+  },
+  progressBarBg: {
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+    width: "100%",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    gap: 16,
+  },
+  emptyStateText: {
     fontSize: 16,
     fontWeight: "500",
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: "center",
-  },
-  retryButton: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: radius.lg,
-  },
-  retryButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 16,
   },
 });

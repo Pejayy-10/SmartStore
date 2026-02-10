@@ -19,27 +19,48 @@ export interface Migration {
  */
 export function getMigrations(): Record<number, Migration> {
   return {
-    // Version 1 is the initial schema (defined in schema.ts)
-    // Future migrations go here:
-    // Example migration for version 2:
-    // 2: {
-    //   version: 2,
-    //   description: 'Add employees table',
-    //   up: `
-    //     CREATE TABLE IF NOT EXISTS employees (
-    //       id INTEGER PRIMARY KEY AUTOINCREMENT,
-    //       name TEXT NOT NULL,
-    //       role TEXT NOT NULL DEFAULT 'staff',
-    //       wage_type TEXT NOT NULL DEFAULT 'daily',
-    //       wage_amount REAL NOT NULL DEFAULT 0,
-    //       pin_hash TEXT,
-    //       created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-    //       updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-    //       is_active INTEGER NOT NULL DEFAULT 1
-    //     );
-    //   `,
-    //   down: `DROP TABLE IF EXISTS employees;`
-    // },
+    2: {
+      version: 2,
+      description: "Add employees and expenses tables",
+      up: `
+        CREATE TABLE IF NOT EXISTS employees (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('owner', 'cashier', 'staff')),
+          wage_type TEXT NOT NULL DEFAULT 'daily' CHECK (wage_type IN ('hourly', 'daily', 'monthly')),
+          wage_amount REAL NOT NULL DEFAULT 0,
+          pin_hash TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+          is_active INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_employees_name ON employees(name);
+        CREATE INDEX IF NOT EXISTS idx_employees_active ON employees(is_active);
+
+        CREATE TABLE IF NOT EXISTS expenses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL DEFAULT 'other' CHECK (category IN ('rent', 'utilities', 'supplies', 'labor', 'other')),
+          amount REAL NOT NULL DEFAULT 0,
+          is_recurring INTEGER NOT NULL DEFAULT 0,
+          recurrence_type TEXT CHECK (recurrence_type IN ('daily', 'monthly') OR recurrence_type IS NULL),
+          expense_date TEXT NOT NULL DEFAULT (date('now', 'localtime')),
+          notes TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+          is_active INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
+        CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
+        CREATE INDEX IF NOT EXISTS idx_expenses_active ON expenses(is_active);
+      `,
+      down: `
+        DROP TABLE IF EXISTS expenses;
+        DROP TABLE IF EXISTS employees;
+      `,
+    },
   };
 }
 

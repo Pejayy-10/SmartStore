@@ -1,6 +1,6 @@
 /**
- * SmartStore Edit Product Screen
- * Form for editing existing products
+ * SmartStore Add Product Screen
+ * Form for creating new products
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -10,7 +10,7 @@ import { useProductStore, useRecipeStore, useSettingsStore } from "@/store";
 import type { ProductCategory } from "@/types";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -34,20 +34,15 @@ const CATEGORIES: { key: ProductCategory; label: string }[] = [
   { key: "other", label: "Other" },
 ];
 
-export default function EditProductScreen() {
+export default function AddProductScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const productId = parseInt(id || "0", 10);
-
   const systemColorScheme = useColorScheme() ?? "light";
   const { themeMode } = useSettingsStore();
   const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
-  const { products, updateProduct, deleteProduct, isLoading } =
-    useProductStore();
+  const { createProduct, isLoading } = useProductStore();
   const { recipes, fetchRecipes } = useRecipeStore();
-  const product = products.find((p) => p.id === productId);
 
   // Fetch recipes for linking
   useEffect(() => {
@@ -114,19 +109,6 @@ export default function EditProductScreen() {
     ]);
   }, []);
 
-  // Load product data
-  useEffect(() => {
-    if (product) {
-      setName(product.name);
-      setDescription(product.description || "");
-      setCategory(product.category);
-      setSellingPrice(product.selling_price.toString());
-      setRecipeId(product.recipe_id || null);
-      setIsInventoryTracked(Boolean(product.is_inventory_tracked));
-      setImageUri(product.image_uri || null);
-    }
-  }, [product]);
-
   // Handle save
   const handleSave = useCallback(async () => {
     if (!name.trim()) {
@@ -140,7 +122,7 @@ export default function EditProductScreen() {
       return;
     }
 
-    const success = await updateProduct(productId, {
+    const success = await createProduct({
       name: name.trim(),
       description: description.trim() || undefined,
       category,
@@ -153,10 +135,9 @@ export default function EditProductScreen() {
     if (success) {
       router.back();
     } else {
-      Alert.alert("Error", "Failed to update product");
+      Alert.alert("Error", "Failed to create product");
     }
   }, [
-    productId,
     name,
     description,
     category,
@@ -164,46 +145,9 @@ export default function EditProductScreen() {
     recipeId,
     isInventoryTracked,
     imageUri,
-    updateProduct,
+    createProduct,
     router,
   ]);
-
-  // Handle delete
-  const handleDelete = useCallback(() => {
-    Alert.alert(
-      "Delete Product",
-      `Are you sure you want to delete "${name}"? This action cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            const success = await deleteProduct(productId);
-            if (success) {
-              router.back();
-            } else {
-              Alert.alert("Error", "Failed to delete product");
-            }
-          },
-        },
-      ],
-    );
-  }, [productId, name, deleteProduct, router]);
-
-  if (!product) {
-    return (
-      <View
-        style={[
-          styles.container,
-          styles.centered,
-          { backgroundColor: colors.background },
-        ]}
-      >
-        <ActivityIndicator size="large" color={brand.primary} />
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -220,7 +164,7 @@ export default function EditProductScreen() {
         >
           <IconSymbol name="chevron.left" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.title}>Edit Product</Text>
+        <Text style={styles.title}>New Product</Text>
         <View style={{ width: 40 }} />
       </LinearGradient>
 
@@ -489,16 +433,10 @@ export default function EditProductScreen() {
             ) : (
               <>
                 <IconSymbol name="checkmark" size={20} color="#FFFFFF" />
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+                <Text style={styles.saveButtonText}>Create Product</Text>
               </>
             )}
           </LinearGradient>
-        </TouchableOpacity>
-
-        {/* Delete Button */}
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-          <IconSymbol name="trash" size={18} color="#FF3B30" />
-          <Text style={styles.deleteButtonText}>Delete Product</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </View>
@@ -508,10 +446,6 @@ export default function EditProductScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  centered: {
-    justifyContent: "center",
-    alignItems: "center",
   },
   header: {
     flexDirection: "row",
@@ -653,20 +587,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "700",
-  },
-  deleteButton: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginBottom: 40,
-    paddingVertical: 14,
-    gap: 8,
-  },
-  deleteButtonText: {
-    color: "#FF3B30",
-    fontSize: 15,
-    fontWeight: "600",
   },
   imagePicker: {
     width: "100%",

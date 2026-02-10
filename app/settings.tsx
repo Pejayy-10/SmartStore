@@ -15,7 +15,7 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 
 export default function SettingsScreen() {
@@ -88,7 +88,7 @@ export default function SettingsScreen() {
                 <Text style={[styles.userName, { color: colors.text }]}>
                   {userName}
                 </Text>
-                <Text style={[styles.userRole, { color: colors.muted }]}>
+                <Text style={[styles.userRole, { color: colors.textTertiary }]}>
                   Store Owner
                 </Text>
               </View>
@@ -171,7 +171,7 @@ export default function SettingsScreen() {
             <Text style={[styles.infoLabel, { color: colors.text }]}>
               App Name
             </Text>
-            <Text style={[styles.infoValue, { color: colors.muted }]}>
+            <Text style={[styles.infoValue, { color: colors.textTertiary }]}>
               SmartStore
             </Text>
           </View>
@@ -180,7 +180,7 @@ export default function SettingsScreen() {
             <Text style={[styles.infoLabel, { color: colors.text }]}>
               Version
             </Text>
-            <Text style={[styles.infoValue, { color: colors.muted }]}>
+            <Text style={[styles.infoValue, { color: colors.textTertiary }]}>
               1.0.0
             </Text>
           </View>
@@ -212,8 +212,8 @@ export default function SettingsScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.muted }]}>
-            Made with ❤️ by Frandilbert
+          <Text style={[styles.footerText, { color: colors.textTertiary }]}>
+            Made by Frandilbert
           </Text>
         </View>
       </ScrollView>

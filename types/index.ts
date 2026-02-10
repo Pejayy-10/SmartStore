@@ -235,6 +235,27 @@ export interface Expense extends BaseEntity {
   is_recurring: boolean;
   recurrence_type: "daily" | "monthly" | null;
   expense_date: string;
+  notes: string | null;
+}
+
+/** Create/Update expense DTO */
+export interface ExpenseInput {
+  name: string;
+  category: "rent" | "utilities" | "supplies" | "labor" | "other";
+  amount: number;
+  is_recurring?: boolean;
+  recurrence_type?: "daily" | "monthly" | null;
+  expense_date?: string;
+  notes?: string | null;
+}
+
+/** Employee input DTO */
+export interface EmployeeInput {
+  name: string;
+  role?: "owner" | "cashier" | "staff";
+  wage_type?: "hourly" | "daily" | "monthly";
+  wage_amount: number;
+  pin_hash?: string | null;
 }
 
 /** Daily profit summary (Phase 2) */

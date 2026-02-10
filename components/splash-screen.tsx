@@ -3,6 +3,7 @@
  * Animated loading screen with branding
  */
 
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { brand } from "@/constants/theme";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef } from "react";
@@ -129,7 +130,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         ]}
       >
         <View style={styles.logoInner}>
-          <Text style={styles.logoIcon}>🛒</Text>
+          <IconSymbol name="cart.fill" size={50} color={brand.primary} />
         </View>
       </Animated.View>
 
@@ -167,7 +168,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
 
       {/* Made by */}
       <Animated.View style={[styles.footer, { opacity: madeByOpacity }]}>
-        <Text style={styles.madeBy}>Made with ❤️ by</Text>
+        <Text style={styles.madeBy}>Made by</Text>
         <Text style={styles.author}>Frandilbert</Text>
       </Animated.View>
     </LinearGradient>
@@ -231,9 +232,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  logoIcon: {
-    fontSize: 60,
-  },
+
   title: {
     fontSize: 42,
     fontWeight: "800",

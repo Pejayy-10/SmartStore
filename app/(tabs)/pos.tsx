@@ -1,10 +1,11 @@
 /**
  * SmartStore POS Screen
  * Professional Point of Sale checkout with orange theme
+ * Responsive layout for mobile and tablet
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors, brand, radius, shadows } from "@/constants/theme";
+import { brand, Colors, radius, shadows } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import {
     useAppStore,
@@ -14,44 +15,49 @@ import {
 } from "@/store";
 import type { PaymentMethod, Product } from "@/types";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     FlatList,
+    Image,
     Modal,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    useWindowDimensions,
+    View,
 } from "react-native";
+import Animated, { SlideInDown } from "react-native-reanimated";
 
 const PAYMENT_METHODS: { key: PaymentMethod; label: string; icon: string }[] = [
-  { key: "cash", label: "Cash", icon: "banknote" },
-  { key: "card", label: "Card", icon: "creditcard" },
-  { key: "gcash", label: "GCash", icon: "phone" },
-  { key: "maya", label: "Maya", icon: "phone" },
+  { key: "cash", label: "Cash", icon: "banknote.fill" },
+  { key: "card", label: "Card", icon: "creditcard.fill" },
+  { key: "gcash", label: "GCash", icon: "phone.fill" },
+  { key: "maya", label: "Maya", icon: "phone.fill" },
 ];
 
 export default function POSScreen() {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768; // Simple breakpoint
+
   const systemColorScheme = useColorScheme() ?? "light";
   const { themeMode } = useSettingsStore();
   const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
+  const router = useRouter();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showCheckout, setShowCheckout] = useState(false);
+  const [showCartModal, setShowCartModal] = useState(false);
   const [amountInput, setAmountInput] = useState("");
 
-  // App store for initialization
+  // App store
   const { isInitialized, isInitializing, initialize, initError } =
     useAppStore();
-
-  // Product store
   const { products, fetchForPOS } = useProductStore();
-
-  // Cart store
   const {
     items,
     paymentMethod,
@@ -71,21 +77,14 @@ export default function POSScreen() {
     checkout,
   } = useCartStore();
 
-  // Initialize database on mount
   useEffect(() => {
-    if (!isInitialized && !isInitializing) {
-      initialize();
-    }
+    if (!isInitialized && !isInitializing) initialize();
   }, [isInitialized, isInitializing, initialize]);
 
-  // Fetch products for POS when initialized
   useEffect(() => {
-    if (isInitialized) {
-      fetchForPOS();
-    }
+    if (isInitialized) fetchForPOS();
   }, [isInitialized, fetchForPOS]);
 
-  // Filter products based on search
   const filteredProducts = useMemo(() => {
     if (!searchQuery.trim()) return products;
     const query = searchQuery.toLowerCase();
@@ -96,17 +95,14 @@ export default function POSScreen() {
     );
   }, [products, searchQuery]);
 
-  // Handle amount input
   const handleAmountChange = useCallback(
     (value: string) => {
       setAmountInput(value);
-      const amount = parseFloat(value) || 0;
-      setAmountReceived(amount);
+      setAmountReceived(parseFloat(value) || 0);
     },
     [setAmountReceived],
   );
 
-  // Quick amount buttons
   const handleQuickAmount = useCallback(
     (amount: number) => {
       setAmountInput(amount.toString());
@@ -115,7 +111,6 @@ export default function POSScreen() {
     [setAmountReceived],
   );
 
-  // Handle checkout
   const handleCheckout = useCallback(async () => {
     try {
       await checkout();
@@ -130,44 +125,65 @@ export default function POSScreen() {
     }
   }, [checkout]);
 
-  // Render product grid item
-  const renderProduct = ({ item }: { item: Product }) => (
+  // Components
+  const ProductCard = ({ item }: { item: Product }) => (
     <TouchableOpacity
       style={[
         styles.productTile,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-        },
+        { backgroundColor: colors.card, borderColor: colors.border },
         shadows.soft,
       ]}
       onPress={() => addItem(item)}
       activeOpacity={0.7}
     >
-      <View
-        style={[
-          styles.productCategory,
-          { backgroundColor: brand.primaryFaded },
-        ]}
-      >
-        <Text style={[styles.productCategoryText, { color: brand.primary }]}>
-          {item.category}
+      {item.image_uri ? (
+        <Image
+          source={{ uri: item.image_uri }}
+          style={styles.productTileImage}
+        />
+      ) : null}
+      <View style={styles.productHeader}>
+        <View
+          style={[
+            styles.productCategory,
+            { backgroundColor: brand.primaryFaded },
+          ]}
+        >
+          <Text style={[styles.productCategoryText, { color: brand.primary }]}>
+            {item.category.slice(0, 10)}
+          </Text>
+        </View>
+        <Text style={[styles.productPrice, { color: brand.primary }]}>
+          ₱{item.selling_price.toFixed(0)}
         </Text>
       </View>
       <Text
-        style={[styles.productTileName, { color: colors.text }]}
+        style={[
+          styles.productName,
+          { color: item.image_uri ? "#FFFFFF" : colors.text },
+        ]}
         numberOfLines={2}
       >
         {item.name}
       </Text>
-      <Text style={[styles.productTilePrice, { color: brand.primary }]}>
-        ₱{item.selling_price.toFixed(2)}
-      </Text>
+      {item.is_inventory_tracked && (
+        <Text
+          style={[
+            styles.stockLabel,
+            {
+              color: item.image_uri
+                ? "rgba(255,255,255,0.7)"
+                : colors.textTertiary,
+            },
+          ]}
+        >
+          Tracked
+        </Text>
+      )}
     </TouchableOpacity>
   );
 
-  // Render cart item
-  const renderCartItem = ({ item }: { item: (typeof items)[0] }) => (
+  const CartItem = ({ item }: { item: (typeof items)[0] }) => (
     <View style={[styles.cartItem, { borderBottomColor: colors.border }]}>
       <View style={styles.cartItemInfo}>
         <Text
@@ -181,9 +197,6 @@ export default function POSScreen() {
         </Text>
       </View>
       <View style={styles.cartItemActions}>
-        <Text style={[styles.cartItemTotal, { color: brand.primary }]}>
-          ₱{(item.unitPrice * item.quantity).toFixed(2)}
-        </Text>
         <View style={styles.quantityControls}>
           <TouchableOpacity
             style={[
@@ -207,39 +220,94 @@ export default function POSScreen() {
             <IconSymbol name="plus" size={14} color={brand.primary} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => removeItem(item.product.id)}>
-          <IconSymbol name="trash" size={18} color="#FF3B30" />
-        </TouchableOpacity>
+        <Text style={[styles.cartItemTotal, { color: brand.primary }]}>
+          ₱{(item.unitPrice * item.quantity).toFixed(2)}
+        </Text>
       </View>
     </View>
   );
 
-  // Show loading state
+  const CartView = () => (
+    <View style={styles.cartContent}>
+      <View style={styles.cartHeader}>
+        <View style={styles.cartHeaderLeft}>
+          <IconSymbol name="cart.fill" size={20} color={brand.primary} />
+          <Text style={[styles.cartTitle, { color: colors.text }]}>
+            Current Order ({itemCount()})
+          </Text>
+        </View>
+        {items.length > 0 && (
+          <TouchableOpacity onPress={clearCart}>
+            <Text style={[styles.clearText, { color: "#FF3B30" }]}>Clear</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {items.length === 0 ? (
+        <View style={styles.emptyCart}>
+          <IconSymbol name="cart" size={48} color={colors.icon} />
+          <Text style={[styles.emptyCartText, { color: colors.textSecondary }]}>
+            Cart is empty
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={items}
+          renderItem={({ item }) => <CartItem item={item} />}
+          keyExtractor={(item) => item.product.id.toString()}
+          style={styles.cartList}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 100 }}
+        />
+      )}
+
+      {items.length > 0 && (
+        <View
+          style={[
+            styles.cartFooter,
+            { backgroundColor: colors.card, borderTopColor: colors.border },
+          ]}
+        >
+          <View style={styles.summaryRow}>
+            <Text style={[styles.totalLabel, { color: colors.text }]}>
+              Total
+            </Text>
+            <Text style={[styles.totalValue, { color: brand.primary }]}>
+              ₱{total().toFixed(2)}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.checkoutButton, shadows.glow]}
+            onPress={() => {
+              setShowCartModal(false);
+              setShowCheckout(true);
+            }}
+          >
+            <LinearGradient
+              colors={[brand.primary, brand.primaryDark]}
+              style={styles.checkoutGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.checkoutText}>
+                Charge ₱{total().toFixed(2)}
+              </Text>
+              <IconSymbol
+                name="arrow.right.circle.fill"
+                size={20}
+                color="#FFFFFF"
+              />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
   if (isInitializing) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={brand.primary} />
-        <Text style={[styles.loadingText, { color: colors.text }]}>
-          Loading products...
-        </Text>
-      </View>
-    );
-  }
-
-  // Show init error
-  if (initError) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF3B30" />
-        <Text style={[styles.errorText, { color: colors.text }]}>
-          {initError}
-        </Text>
-        <TouchableOpacity
-          style={[styles.retryButton, { backgroundColor: brand.primary }]}
-          onPress={initialize}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -247,365 +315,320 @@ export default function POSScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <LinearGradient
-        colors={[brand.primary, brand.primaryDark]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.header}
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: colors.surface, borderBottomColor: colors.border },
+        ]}
       >
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>Point of Sale</Text>
-          {items.length > 0 && (
-            <TouchableOpacity style={styles.clearButton} onPress={clearCart}>
-              <Text style={styles.clearButtonText}>Clear Cart</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </LinearGradient>
-
-      <View style={styles.mainContent}>
-        {/* Products Section */}
-        <View style={styles.productsSection}>
-          {/* Search Bar */}
-          <View
-            style={[
-              styles.searchContainer,
-              { backgroundColor: colors.card, borderColor: colors.border },
-              shadows.soft,
-            ]}
-          >
-            <IconSymbol name="magnifyingglass" size={18} color={colors.icon} />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search products..."
-              placeholderTextColor={colors.textTertiary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-
-          {/* Products Grid */}
-          <FlatList
-            data={filteredProducts}
-            renderItem={renderProduct}
-            keyExtractor={(item) => item.id.toString()}
-            numColumns={2}
-            contentContainerStyle={styles.productsGrid}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <View style={styles.emptyProducts}>
-                <IconSymbol name="cart" size={48} color={colors.icon} />
-                <Text
-                  style={[styles.emptyText, { color: colors.textSecondary }]}
-                >
-                  No products available
-                </Text>
-                <Text
-                  style={[styles.emptySubtext, { color: colors.textTertiary }]}
-                >
-                  Add products in the Products tab
-                </Text>
-              </View>
-            }
-          />
-        </View>
-
-        {/* Cart Section */}
         <View
-          style={[
-            styles.cartSection,
-            { backgroundColor: colors.card },
-            shadows.medium,
-          ]}
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 12,
+          }}
         >
-          <View style={styles.cartHeader}>
-            <IconSymbol name="cart.fill" size={20} color={brand.primary} />
-            <Text style={[styles.cartTitle, { color: colors.text }]}>
-              Cart ({itemCount()})
-            </Text>
-          </View>
-
-          {items.length === 0 ? (
-            <View style={styles.emptyCart}>
-              <IconSymbol name="cart" size={40} color={colors.icon} />
-              <Text
-                style={[styles.emptyCartText, { color: colors.textSecondary }]}
-              >
-                Tap products to add
-              </Text>
-            </View>
-          ) : (
-            <>
-              <FlatList
-                data={items}
-                renderItem={renderCartItem}
-                keyExtractor={(item) => item.product.id.toString()}
-                style={styles.cartList}
-                showsVerticalScrollIndicator={false}
-              />
-
-              {/* Cart Summary */}
-              <View
-                style={[styles.cartSummary, { borderTopColor: colors.border }]}
-              >
-                <View style={styles.summaryRow}>
-                  <Text
-                    style={[
-                      styles.summaryLabel,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    Subtotal
-                  </Text>
-                  <Text style={[styles.summaryValue, { color: colors.text }]}>
-                    ₱{subtotal().toFixed(2)}
-                  </Text>
-                </View>
-                {totalDiscount() > 0 && (
-                  <View style={styles.summaryRow}>
-                    <Text
-                      style={[
-                        styles.summaryLabel,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      Discount
-                    </Text>
-                    <Text style={[styles.summaryValue, { color: "#34C759" }]}>
-                      -₱{totalDiscount().toFixed(2)}
-                    </Text>
-                  </View>
-                )}
-                <View
-                  style={[
-                    styles.summaryRow,
-                    styles.totalRow,
-                    { borderTopColor: colors.border },
-                  ]}
-                >
-                  <Text style={[styles.totalLabel, { color: colors.text }]}>
-                    TOTAL
-                  </Text>
-                  <Text style={[styles.totalValue, { color: brand.primary }]}>
-                    ₱{total().toFixed(2)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Checkout Button */}
-              <TouchableOpacity
-                style={[styles.checkoutButton, shadows.glow]}
-                onPress={() => setShowCheckout(true)}
-              >
-                <LinearGradient
-                  colors={[brand.primary, brand.primaryDark]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.checkoutButtonGradient}
-                >
-                  <IconSymbol name="creditcard" size={20} color="#FFFFFF" />
-                  <Text style={styles.checkoutButtonText}>Checkout</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </>
-          )}
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            Point of Sale
+          </Text>
+          <TouchableOpacity onPress={() => router.push("/settings")}>
+            <IconSymbol name="gearshape.fill" size={24} color={brand.primary} />
+          </TouchableOpacity>
+        </View>
+        <View
+          style={[styles.searchBar, { backgroundColor: colors.background }]}
+        >
+          <IconSymbol
+            name="magnifyingglass"
+            size={18}
+            color={colors.textTertiary}
+          />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search products..."
+            placeholderTextColor={colors.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
         </View>
       </View>
 
-      {/* Checkout Modal */}
+      <View style={styles.content}>
+        {/* Product Grid */}
+        <View style={styles.gridContainer}>
+          <FlatList
+            data={filteredProducts}
+            renderItem={({ item }) => <ProductCard item={item} />}
+            keyExtractor={(item) => item.id.toString()}
+            numColumns={isTablet ? 3 : 2}
+            contentContainerStyle={styles.gridContent}
+            columnWrapperStyle={styles.gridRow}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
+
+        {/* Tablet Cart (Side Panel) */}
+        {isTablet && (
+          <View
+            style={[
+              styles.sidePanel,
+              { backgroundColor: colors.card, borderLeftColor: colors.border },
+            ]}
+          >
+            <CartView />
+          </View>
+        )}
+      </View>
+
+      {/* Mobile Floating Cart Button */}
+      {!isTablet && items.length > 0 && (
+        <Animated.View
+          entering={SlideInDown.springify()}
+          style={styles.floatingCartContainer}
+        >
+          <TouchableOpacity
+            style={[styles.floatingCartButton, shadows.glow]}
+            onPress={() => setShowCartModal(true)}
+          >
+            <LinearGradient
+              colors={[brand.primary, brand.primaryDark]}
+              style={styles.floatingCartGradient}
+            >
+              <View style={styles.cartCountBadge}>
+                <Text style={styles.cartCountText}>{itemCount()}</Text>
+              </View>
+              <Text style={styles.viewCartText}>View Cart</Text>
+              <Text style={styles.cartTotalText}>₱{total().toFixed(2)}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
+      {/* Mobile Cart Modal */}
+      <Modal
+        visible={showCartModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCartModal(false)}
+      >
+        <View
+          style={[
+            styles.modalContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
+          <View
+            style={[styles.modalHandle, { backgroundColor: colors.border }]}
+          />
+          <CartView />
+        </View>
+      </Modal>
+
+      {/* Checkout Modal (Global) */}
       <Modal
         visible={showCheckout}
         animationType="slide"
-        presentationStyle="pageSheet"
+        presentationStyle="formSheet"
         onRequestClose={() => setShowCheckout(false)}
       >
         <View
           style={[styles.checkoutModal, { backgroundColor: colors.background }]}
         >
           <View
-            style={[styles.modalHeader, { borderBottomColor: colors.border }]}
+            style={[
+              styles.checkoutHeader,
+              { borderBottomColor: colors.border },
+            ]}
           >
             <TouchableOpacity onPress={() => setShowCheckout(false)}>
-              <IconSymbol name="xmark" size={24} color={colors.text} />
+              <Text style={{ color: brand.primary, fontSize: 16 }}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
+            <Text style={[styles.checkoutTitle, { color: colors.text }]}>
               Checkout
             </Text>
-            <View style={{ width: 24 }} />
+            <View style={{ width: 50 }} />
           </View>
 
-          {/* Total Display */}
-          <View
-            style={[
-              styles.totalDisplay,
-              { backgroundColor: brand.primaryFaded },
-            ]}
-          >
-            <Text style={[styles.totalDisplayLabel, { color: brand.primary }]}>
-              Total Amount
-            </Text>
-            <Text style={[styles.totalDisplayValue, { color: brand.primary }]}>
-              ₱{total().toFixed(2)}
-            </Text>
-          </View>
+          <View style={styles.checkoutBody}>
+            <View
+              style={[
+                styles.totalDisplay,
+                { backgroundColor: brand.primaryFaded },
+              ]}
+            >
+              <Text style={[styles.totalLabelLarge, { color: brand.primary }]}>
+                Total Amount
+              </Text>
+              <Text style={[styles.totalValueLarge, { color: brand.primary }]}>
+                ₱{total().toFixed(2)}
+              </Text>
+            </View>
 
-          {/* Payment Method */}
-          <Text style={[styles.sectionLabel, { color: colors.text }]}>
-            Payment Method
-          </Text>
-          <View style={styles.paymentMethods}>
-            {PAYMENT_METHODS.map((method) => (
-              <TouchableOpacity
-                key={method.key}
-                style={[
-                  styles.paymentOption,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor:
-                      paymentMethod === method.key
-                        ? brand.primary
-                        : colors.border,
-                    borderWidth: paymentMethod === method.key ? 2 : 1,
-                  },
-                  paymentMethod === method.key && shadows.soft,
-                ]}
-                onPress={() => setPaymentMethod(method.key)}
-              >
-                <Text
+            <Text
+              style={[styles.sectionTitle, { color: colors.textSecondary }]}
+            >
+              Payment Method
+            </Text>
+            <View style={styles.paymentGrid}>
+              {PAYMENT_METHODS.map((method) => (
+                <TouchableOpacity
+                  key={method.key}
                   style={[
-                    styles.paymentOptionText,
+                    styles.paymentOption,
                     {
-                      color:
+                      backgroundColor: colors.card,
+                      borderColor:
                         paymentMethod === method.key
                           ? brand.primary
-                          : colors.text,
+                          : colors.border,
+                      borderWidth: paymentMethod === method.key ? 2 : 1,
                     },
                   ]}
+                  onPress={() => setPaymentMethod(method.key)}
                 >
-                  {method.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                  {/* @ts-ignore - Ensure icons exist in IconSymbol */}
+                  <IconSymbol
+                    name={method.icon as any}
+                    size={24}
+                    color={
+                      paymentMethod === method.key ? brand.primary : colors.text
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.paymentText,
+                      {
+                        color:
+                          paymentMethod === method.key
+                            ? brand.primary
+                            : colors.text,
+                      },
+                    ]}
+                  >
+                    {method.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-          {/* Amount */}
-          <Text style={[styles.sectionLabel, { color: colors.text }]}>
-            Amount Received
-          </Text>
-          <View
-            style={[
-              styles.amountInput,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.currencyPrefix, { color: brand.primary }]}>
-              ₱
+            <Text
+              style={[styles.sectionTitle, { color: colors.textSecondary }]}
+            >
+              Amount Received
             </Text>
-            <TextInput
-              style={[styles.amountTextInput, { color: colors.text }]}
-              placeholder="0.00"
-              placeholderTextColor={colors.textTertiary}
-              value={amountInput}
-              onChangeText={handleAmountChange}
-              keyboardType="decimal-pad"
-            />
-          </View>
+            <View
+              style={[
+                styles.amountInputContainer,
+                { backgroundColor: colors.card, borderColor: brand.primary },
+              ]}
+            >
+              <Text style={[styles.currencySymbol, { color: brand.primary }]}>
+                ₱
+              </Text>
+              <TextInput
+                style={[styles.amountInput, { color: colors.text }]}
+                value={amountInput}
+                onChangeText={handleAmountChange}
+                placeholder="0.00"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="decimal-pad"
+                autoFocus
+              />
+            </View>
 
-          {/* Quick Amount Buttons */}
-          <View style={styles.quickAmounts}>
-            {[100, 200, 500, 1000].map((amount) => (
+            <View style={styles.quickAmountGrid}>
+              {[100, 500, 1000].map((amt) => (
+                <TouchableOpacity
+                  key={amt}
+                  style={[
+                    styles.quickAmountChip,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  onPress={() => handleQuickAmount(amt)}
+                >
+                  <Text
+                    style={[styles.quickAmountText, { color: colors.text }]}
+                  >
+                    ₱{amt}
+                  </Text>
+                </TouchableOpacity>
+              ))}
               <TouchableOpacity
-                key={amount}
                 style={[
-                  styles.quickAmountButton,
-                  { backgroundColor: colors.card, borderColor: colors.border },
+                  styles.quickAmountChip,
+                  {
+                    backgroundColor: brand.primaryFaded,
+                    borderColor: brand.primary,
+                  },
                 ]}
-                onPress={() => handleQuickAmount(amount)}
+                onPress={() => handleQuickAmount(total())}
               >
-                <Text style={[styles.quickAmountText, { color: colors.text }]}>
-                  ₱{amount}
+                <Text
+                  style={[styles.quickAmountText, { color: brand.primary }]}
+                >
+                  Exact
                 </Text>
               </TouchableOpacity>
-            ))}
-            <TouchableOpacity
+            </View>
+
+            <View
               style={[
-                styles.quickAmountButton,
+                styles.changeContainer,
                 {
-                  backgroundColor: brand.primaryFaded,
-                  borderColor: brand.primary,
+                  backgroundColor:
+                    changeAmount() >= 0 ? colors.card : "#FFEBEE",
                 },
               ]}
-              onPress={() => handleQuickAmount(total())}
             >
               <Text
+                style={[styles.changeLabel, { color: colors.textSecondary }]}
+              >
+                Change
+              </Text>
+              <Text
                 style={[
-                  styles.quickAmountText,
-                  { color: brand.primary, fontWeight: "700" },
+                  styles.changeValue,
+                  { color: changeAmount() >= 0 ? brand.primary : "#FF3B30" },
                 ]}
               >
-                Exact
+                ₱{Math.abs(changeAmount()).toFixed(2)}
               </Text>
-            </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Change Display */}
           <View
             style={[
-              styles.changeDisplay,
-              { backgroundColor: changeAmount() >= 0 ? "#E8F5E9" : "#FFEBEE" },
+              styles.checkoutFooter,
+              {
+                borderTopColor: colors.border,
+                backgroundColor: colors.background,
+              },
             ]}
           >
-            <Text
+            <TouchableOpacity
               style={[
-                styles.changeLabel,
-                { color: changeAmount() >= 0 ? "#2E7D32" : "#C62828" },
+                styles.completeButton,
+                { opacity: changeAmount() >= 0 ? 1 : 0.5 },
               ]}
+              onPress={handleCheckout}
+              disabled={changeAmount() < 0 || isProcessing}
             >
-              Change
-            </Text>
-            <Text
-              style={[
-                styles.changeValue,
-                { color: changeAmount() >= 0 ? "#2E7D32" : "#C62828" },
-              ]}
-            >
-              ₱{Math.abs(changeAmount()).toFixed(2)}
-            </Text>
+              <LinearGradient
+                colors={[brand.primary, brand.primaryDark]}
+                style={styles.completeGradient}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.completeText}>Complete Sale</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
-
-          {/* Complete Sale Button */}
-          <TouchableOpacity
-            style={[
-              styles.completeSaleButton,
-              changeAmount() >= 0 ? shadows.glow : {},
-            ]}
-            onPress={handleCheckout}
-            disabled={isProcessing || changeAmount() < 0}
-          >
-            <LinearGradient
-              colors={
-                changeAmount() >= 0
-                  ? [brand.primary, brand.primaryDark]
-                  : ["#CCC", "#AAA"]
-              }
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.completeSaleGradient}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <IconSymbol
-                    name="checkmark.circle.fill"
-                    size={22}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.completeSaleText}>Complete Sale</Text>
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
         </View>
       </Modal>
     </View>
@@ -613,169 +636,99 @@ export default function POSScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    gap: 16,
-  },
+  container: { flex: 1 },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
-    paddingTop: 56,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  clearButton: {
-    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingTop: 60,
+    paddingBottom: 16,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  headerTitle: { fontSize: 24, fontWeight: "800" },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    height: 44,
     borderRadius: radius.md,
+    marginTop: 12,
+    gap: 8,
   },
-  clearButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  mainContent: {
-    flex: 1,
-    flexDirection: "row",
-  },
-  productsSection: {
-    flex: 1,
-    padding: 16,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    gap: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-  },
-  productsGrid: {
-    gap: 12,
-    paddingBottom: 20,
-  },
+  searchInput: { flex: 1, fontSize: 16, height: "100%" },
+  content: { flex: 1, flexDirection: "row" },
+  gridContainer: { flex: 1 },
+  gridContent: { padding: 12, paddingBottom: 100 },
+  gridRow: { justifyContent: "space-between" },
+
+  // Product Card
   productTile: {
     flex: 1,
-    margin: 4,
-    padding: 16,
+    margin: 6,
+    padding: 12,
     borderRadius: radius.lg,
     borderWidth: 1,
-    minHeight: 110,
+    minHeight: 140,
     justifyContent: "space-between",
   },
+  productHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
   productCategory: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: radius.sm,
-    marginBottom: 8,
   },
   productCategoryText: {
     fontSize: 10,
-    fontWeight: "600",
+    fontWeight: "700",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
-  productTileName: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  productTilePrice: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  emptyProducts: {
-    alignItems: "center",
-    paddingTop: 60,
-    gap: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  emptySubtext: {
-    fontSize: 14,
-  },
-  cartSection: {
-    width: 320,
-    padding: 16,
-    borderTopLeftRadius: radius.xl,
-    borderBottomLeftRadius: radius.xl,
-  },
+  productPrice: { fontSize: 16, fontWeight: "800" },
+  productName: { fontSize: 15, fontWeight: "600", marginTop: 8 },
+  stockLabel: { fontSize: 12, marginTop: 4 },
+
+  // Side Panel (Tablet)
+  sidePanel: { width: 350, borderLeftWidth: 1 },
+
+  // Cart
+  cartContent: { flex: 1 },
   cartHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 16,
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#ccc",
   },
-  cartTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
+  cartHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  cartTitle: { fontSize: 18, fontWeight: "700" },
+  clearText: { fontSize: 14, fontWeight: "600" },
   emptyCart: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     gap: 12,
   },
-  emptyCartText: {
-    fontSize: 15,
-  },
-  cartList: {
-    flex: 1,
-  },
+  emptyCartText: { fontSize: 16 },
+  cartList: { flex: 1 },
   cartItem: {
-    paddingVertical: 12,
+    padding: 16,
     borderBottomWidth: 1,
-  },
-  cartItemInfo: {
-    marginBottom: 8,
-  },
-  cartItemName: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  cartItemPrice: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  cartItemActions: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
   },
-  cartItemTotal: {
-    fontSize: 16,
-    fontWeight: "700",
-    minWidth: 80,
-  },
+  cartItemInfo: { flex: 1 },
+  cartItemName: { fontSize: 16, fontWeight: "600" },
+  cartItemPrice: { fontSize: 13, marginTop: 2 },
+  cartItemActions: { alignItems: "flex-end", gap: 4 },
   quantityControls: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
+    marginBottom: 4,
   },
   quantityButton: {
     width: 28,
@@ -785,195 +738,150 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   quantityText: {
-    fontSize: 16,
-    fontWeight: "700",
-    minWidth: 24,
+    fontSize: 14,
+    fontWeight: "600",
+    minWidth: 20,
     textAlign: "center",
   },
-  cartSummary: {
-    paddingTop: 16,
-    borderTopWidth: 1,
-    marginTop: 12,
-  },
+  cartItemTotal: { fontSize: 15, fontWeight: "700" },
+
+  // Cart Footer
+  cartFooter: { padding: 16, borderTopWidth: 1 },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  summaryLabel: {
-    fontSize: 14,
-  },
-  summaryValue: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  totalRow: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  totalValue: {
-    fontSize: 22,
-    fontWeight: "800",
-  },
-  checkoutButton: {
-    marginTop: 16,
-    borderRadius: radius.lg,
-    overflow: "hidden",
-  },
-  checkoutButtonGradient: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 16,
-    gap: 10,
-  },
-  checkoutButtonText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  checkoutModal: {
-    flex: 1,
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 20,
-    paddingBottom: 20,
-    marginBottom: 20,
-    borderBottomWidth: 1,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  totalDisplay: {
-    padding: 20,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  totalDisplayLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  totalDisplayValue: {
-    fontSize: 36,
-    fontWeight: "800",
-  },
-  sectionLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  paymentMethods: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 24,
-  },
-  paymentOption: {
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: radius.md,
-  },
-  paymentOptionText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  amountInput: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderRadius: radius.lg,
-    paddingHorizontal: 16,
     marginBottom: 16,
   },
-  currencyPrefix: {
-    fontSize: 24,
-    fontWeight: "700",
-    marginRight: 8,
-  },
-  amountTextInput: {
-    flex: 1,
-    paddingVertical: 16,
-    fontSize: 28,
-    fontWeight: "700",
-  },
-  quickAmounts: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 24,
-  },
-  quickAmountButton: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  quickAmountText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  changeDisplay: {
+  totalLabel: { fontSize: 18, fontWeight: "600" },
+  totalValue: { fontSize: 24, fontWeight: "800" },
+  checkoutButton: { borderRadius: radius.full, overflow: "hidden" },
+  checkoutGradient: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
-    borderRadius: radius.lg,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  checkoutText: { color: "#FFF", fontSize: 18, fontWeight: "700" },
+
+  // Floating Cart (Mobile)
+  floatingCartContainer: {
+    position: "absolute",
+    bottom: 24,
+    left: 24,
+    right: 24,
+  },
+  floatingCartButton: { borderRadius: radius.full, overflow: "hidden" },
+  floatingCartGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+  },
+  cartCountBadge: {
+    backgroundColor: "#FFF",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  cartCountText: { color: brand.primary, fontWeight: "800", fontSize: 14 },
+  viewCartText: { flex: 1, color: "#FFF", fontSize: 16, fontWeight: "600" },
+  cartTotalText: { color: "#FFF", fontSize: 18, fontWeight: "800" },
+
+  // Cart Modal
+  modalContainer: { flex: 1, paddingTop: 12 },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+
+  // Checkout Modal
+  checkoutModal: { flex: 1 },
+  checkoutHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    marginTop: 10,
+  },
+  checkoutTitle: { fontSize: 18, fontWeight: "700" },
+  checkoutBody: { flex: 1, padding: 20 },
+  totalDisplay: {
+    padding: 24,
+    borderRadius: radius.xl,
+    alignItems: "center",
     marginBottom: 24,
   },
-  changeLabel: {
-    fontSize: 16,
+  totalLabelLarge: {
+    fontSize: 14,
     fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
-  changeValue: {
-    fontSize: 32,
-    fontWeight: "800",
+  totalValueLarge: { fontSize: 40, fontWeight: "800", marginBottom: 4 },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginBottom: 12,
+    marginTop: 12,
   },
-  completeSaleButton: {
-    borderRadius: radius.lg,
-    overflow: "hidden",
-  },
-  completeSaleGradient: {
+  paymentGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  paymentOption: {
+    width: "48%",
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 18,
-    gap: 10,
-  },
-  completeSaleText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  loadingText: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: "center",
-  },
-  retryButton: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
+    padding: 12,
     borderRadius: radius.lg,
+    gap: 8,
   },
-  retryButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 16,
+  paymentText: { fontSize: 14, fontWeight: "600" },
+  amountInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 2,
+    borderRadius: radius.xl,
+    paddingHorizontal: 16,
+    height: 60,
+    marginTop: 8,
+  },
+  currencySymbol: { fontSize: 24, fontWeight: "800", marginRight: 8 },
+  amountInput: { flex: 1, fontSize: 24, fontWeight: "700", height: "100%" },
+  quickAmountGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  quickAmountChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  quickAmountText: { fontWeight: "600" },
+  changeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: radius.lg,
+    marginTop: 24,
+  },
+  changeLabel: { fontSize: 16, fontWeight: "600" },
+  changeValue: { fontSize: 20, fontWeight: "800" },
+  checkoutFooter: { padding: 20, paddingBottom: 40, borderTopWidth: 1 },
+  completeButton: { borderRadius: radius.full, overflow: "hidden" },
+  completeGradient: { paddingVertical: 18, alignItems: "center" },
+  completeText: { color: "#FFF", fontSize: 18, fontWeight: "700" },
+  productTileImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
 });

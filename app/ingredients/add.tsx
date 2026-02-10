@@ -1,6 +1,6 @@
 /**
- * SmartStore Edit Ingredient Screen
- * Form for editing existing ingredients
+ * SmartStore Add Ingredient Screen
+ * Form for creating new ingredients
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -8,8 +8,8 @@ import { Colors, brand, radius, shadows } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useIngredientStore, useSettingsStore } from "@/store";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -36,19 +36,14 @@ const UNIT_TYPES = [
   "tsp",
 ];
 
-export default function EditIngredientScreen() {
+export default function AddIngredientScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const ingredientId = parseInt(id || "0", 10);
-
   const systemColorScheme = useColorScheme() ?? "light";
   const { themeMode } = useSettingsStore();
   const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
-  const { ingredients, updateIngredient, deleteIngredient, isLoading } =
-    useIngredientStore();
-  const ingredient = ingredients.find((i) => i.id === ingredientId);
+  const { createIngredient, isLoading } = useIngredientStore();
 
   // Form state
   const [name, setName] = useState("");
@@ -58,19 +53,6 @@ export default function EditIngredientScreen() {
   const [quantityInStock, setQuantityInStock] = useState("");
   const [lowStockThreshold, setLowStockThreshold] = useState("10");
   const [supplier, setSupplier] = useState("");
-
-  // Load ingredient data
-  useEffect(() => {
-    if (ingredient) {
-      setName(ingredient.name);
-      setDescription(ingredient.description || "");
-      setCostPerUnit(ingredient.cost_per_unit.toString());
-      setUnitType(ingredient.unit_type);
-      setQuantityInStock(ingredient.quantity_in_stock.toString());
-      setLowStockThreshold(ingredient.low_stock_threshold.toString());
-      setSupplier(ingredient.supplier || "");
-    }
-  }, [ingredient]);
 
   // Handle save
   const handleSave = useCallback(async () => {
@@ -83,7 +65,7 @@ export default function EditIngredientScreen() {
     const quantity = parseFloat(quantityInStock) || 0;
     const threshold = parseFloat(lowStockThreshold) || 10;
 
-    const success = await updateIngredient(ingredientId, {
+    const success = await createIngredient({
       name: name.trim(),
       description: description.trim() || undefined,
       cost_per_unit: cost,
@@ -96,10 +78,9 @@ export default function EditIngredientScreen() {
     if (success) {
       router.back();
     } else {
-      Alert.alert("Error", "Failed to update ingredient");
+      Alert.alert("Error", "Failed to create ingredient");
     }
   }, [
-    ingredientId,
     name,
     description,
     costPerUnit,
@@ -107,46 +88,9 @@ export default function EditIngredientScreen() {
     quantityInStock,
     lowStockThreshold,
     supplier,
-    updateIngredient,
+    createIngredient,
     router,
   ]);
-
-  // Handle delete
-  const handleDelete = useCallback(() => {
-    Alert.alert(
-      "Delete Ingredient",
-      `Are you sure you want to delete "${name}"? This action cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            const success = await deleteIngredient(ingredientId);
-            if (success) {
-              router.back();
-            } else {
-              Alert.alert("Error", "Failed to delete ingredient");
-            }
-          },
-        },
-      ],
-    );
-  }, [ingredientId, name, deleteIngredient, router]);
-
-  if (!ingredient) {
-    return (
-      <View
-        style={[
-          styles.container,
-          styles.centered,
-          { backgroundColor: colors.background },
-        ]}
-      >
-        <ActivityIndicator size="large" color={brand.primary} />
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -163,7 +107,7 @@ export default function EditIngredientScreen() {
         >
           <IconSymbol name="chevron.left" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.title}>Edit Ingredient</Text>
+        <Text style={styles.title}>New Ingredient</Text>
         <View style={{ width: 40 }} />
       </LinearGradient>
 
@@ -364,16 +308,10 @@ export default function EditIngredientScreen() {
             ) : (
               <>
                 <IconSymbol name="checkmark" size={20} color="#FFFFFF" />
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+                <Text style={styles.saveButtonText}>Save Ingredient</Text>
               </>
             )}
           </LinearGradient>
-        </TouchableOpacity>
-
-        {/* Delete Button */}
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-          <IconSymbol name="trash" size={18} color="#FF3B30" />
-          <Text style={styles.deleteButtonText}>Delete Ingredient</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </View>
@@ -383,10 +321,6 @@ export default function EditIngredientScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  centered: {
-    justifyContent: "center",
-    alignItems: "center",
   },
   header: {
     flexDirection: "row",
@@ -479,19 +413,5 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "700",
-  },
-  deleteButton: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginBottom: 40,
-    paddingVertical: 14,
-    gap: 8,
-  },
-  deleteButtonText: {
-    color: "#FF3B30",
-    fontSize: 15,
-    fontWeight: "600",
   },
 });

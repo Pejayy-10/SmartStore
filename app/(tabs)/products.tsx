@@ -1,219 +1,189 @@
 /**
  * SmartStore Products Screen
- * Professional design with orange theme
+ * Professional product management with responsive layout
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors, brand, radius, shadows } from "@/constants/theme";
+import { Colors, brand, radius, shadows, spacing } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAppStore, useProductStore, useSettingsStore } from "@/store";
-import type { Product, ProductCategory } from "@/types";
+import { useProductStore, useSettingsStore } from "@/store";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
+    Image,
     RefreshControl,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
+    useWindowDimensions,
 } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
-const CATEGORIES: { key: ProductCategory | "all"; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "food", label: "Food" },
-  { key: "beverage", label: "Drinks" },
-  { key: "dessert", label: "Dessert" },
-  { key: "snack", label: "Snack" },
-  { key: "other", label: "Other" },
+const CATEGORIES = [
+  { key: "all", label: "All Items", icon: "list.bullet" },
+  { key: "food", label: "Food", icon: "fork.knife" },
+  { key: "beverage", label: "Beverages", icon: "cup.and.saucer.fill" },
+  { key: "dessert", label: "Desserts", icon: "birthday.cake.fill" },
+  { key: "snack", label: "Snacks", icon: "birthday.cake.fill" },
+  { key: "other", label: "Other", icon: "tag.fill" },
 ];
 
 export default function ProductsScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
   const systemColorScheme = useColorScheme() ?? "light";
   const { themeMode } = useSettingsStore();
   const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
+  const { products, isLoading, fetchProducts } = useProductStore();
+
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<
-    ProductCategory | "all"
-  >("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
-  // App store for initialization
-  const { isInitialized, isInitializing, initialize, initError } =
-    useAppStore();
-
-  // Product store
-  const {
-    products,
-    isLoading,
-    error,
-    fetchProducts,
-    deleteProduct,
-    clearError,
-  } = useProductStore();
-
-  // Initialize database on mount
+  // Initial fetch
   useEffect(() => {
-    if (!isInitialized && !isInitializing) {
-      initialize();
-    }
-  }, [isInitialized, isInitializing, initialize]);
+    fetchProducts();
+  }, [fetchProducts]);
 
-  // Fetch products when initialized
-  useEffect(() => {
-    if (isInitialized) {
-      fetchProducts();
-    }
-  }, [isInitialized, fetchProducts]);
-
-  // Filter products
-  const filteredProducts = useMemo(() => {
-    let filtered = products;
-
-    if (selectedCategory !== "all") {
-      filtered = filtered.filter((p) => p.category === selectedCategory);
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((p) => p.name.toLowerCase().includes(query));
-    }
-
-    return filtered;
-  }, [products, selectedCategory, searchQuery]);
-
-  // Handle refresh
-  const handleRefresh = useCallback(async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchProducts();
     setRefreshing(false);
   }, [fetchProducts]);
 
-  // Handle delete
-  const handleDelete = useCallback(
-    (product: Product) => {
-      Alert.alert(
-        "Delete Product",
-        `Are you sure you want to delete "${product.name}"?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: async () => {
-              const success = await deleteProduct(product.id);
-              if (!success) {
-                Alert.alert("Error", "Failed to delete product");
-              }
-            },
-          },
-        ],
-      );
-    },
-    [deleteProduct],
-  );
+  const handleEdit = (product: any) => {
+    router.push({
+      pathname: "/products/[id]",
+      params: { id: product.id },
+    });
+  };
 
-  // Handle add
-  const handleAdd = useCallback(() => {
+  const handleAdd = () => {
     router.push("/products/add");
-  }, [router]);
+  };
 
-  // Handle edit
-  const handleEdit = useCallback(
-    (product: Product) => {
-      router.push(`/products/${product.id}`);
-    },
-    [router],
-  );
+  // Filter products
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchesSearch =
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory =
+        selectedCategory === "all" || p.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, searchQuery, selectedCategory]);
 
-  // Render product item
-  const renderProduct = ({ item }: { item: Product }) => {
-    return (
+  const renderItem = ({ item, index }: { item: any; index: number }) => (
+    <Animated.View
+      entering={FadeInDown.delay(index * 50).springify()}
+      style={{
+        width: isTablet ? "32%" : "100%", // Responsive grid for tablet
+        marginBottom: spacing.md,
+      }}
+    >
       <TouchableOpacity
         style={[
-          styles.productCard,
+          styles.card,
           { backgroundColor: colors.card, borderColor: colors.border },
           shadows.soft,
         ]}
         onPress={() => handleEdit(item)}
         activeOpacity={0.7}
       >
-        <View style={styles.productContent}>
+        {item.image_uri ? (
+          <Image source={{ uri: item.image_uri }} style={styles.cardImage} />
+        ) : null}
+        <View style={styles.cardHeader}>
           <View
             style={[
-              styles.categoryBadge,
+              styles.iconContainer,
               { backgroundColor: brand.primaryFaded },
+              item.image_uri && { opacity: 0 }, // Hide icon bg if image exists
             ]}
           >
-            <Text style={[styles.categoryText, { color: brand.primary }]}>
-              {item.category}
+            {!item.image_uri && (
+              <IconSymbol name="tag.fill" size={20} color={brand.primary} />
+            )}
+          </View>
+          <View style={styles.priceTag}>
+            <Text style={[styles.priceText, { color: brand.primary }]}>
+              ₱{item.selling_price.toFixed(2)}
             </Text>
           </View>
+        </View>
+
+        <View style={styles.cardContent}>
           <Text
-            style={[styles.productName, { color: colors.text }]}
-            numberOfLines={2}
+            style={[
+              styles.productName,
+              { color: item.image_uri ? "#FFFFFF" : colors.text },
+            ]}
           >
             {item.name}
           </Text>
-          {item.description && (
-            <Text
-              style={[styles.productDesc, { color: colors.textSecondary }]}
-              numberOfLines={1}
-            >
-              {item.description}
-            </Text>
-          )}
-          <Text style={[styles.productPrice, { color: brand.primary }]}>
-            ₱{item.selling_price.toFixed(2)}
+          <Text
+            style={[
+              styles.productCategory,
+              { color: item.image_uri ? "#E0E0E0" : colors.textSecondary },
+            ]}
+          >
+            {item.category}
           </Text>
+
+          {item.is_inventory_tracked === 1 && (
+            <View style={styles.stockContainer}>
+              <View
+                style={[
+                  styles.stockBadge,
+                  {
+                    backgroundColor:
+                      (item.quantity_in_stock || 0) < 10
+                        ? "#FFE5E5"
+                        : "#E8F5E9",
+                  },
+                ]}
+              >
+                <IconSymbol
+                  name={
+                    (item.quantity_in_stock || 0) < 10
+                      ? "exclamationmark.triangle.fill"
+                      : "checkmark.circle.fill"
+                  }
+                  size={12}
+                  color={
+                    (item.quantity_in_stock || 0) < 10 ? "#FF3B30" : "#2E7D32"
+                  }
+                />
+                <Text
+                  style={[
+                    styles.stockText,
+                    {
+                      color:
+                        (item.quantity_in_stock || 0) < 10
+                          ? "#FF3B30"
+                          : "#2E7D32",
+                    },
+                  ]}
+                >
+                  {item.quantity_in_stock || 0} in stock
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
-
-        <TouchableOpacity
-          onPress={() => handleDelete(item)}
-          style={styles.deleteButton}
-        >
-          <IconSymbol name="trash" size={18} color="#FF3B30" />
-        </TouchableOpacity>
       </TouchableOpacity>
-    );
-  };
-
-  // Show loading state
-  if (isInitializing) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={brand.primary} />
-        <Text style={[styles.loadingText, { color: colors.text }]}>
-          Loading...
-        </Text>
-      </View>
-    );
-  }
-
-  // Show init error
-  if (initError) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF3B30" />
-        <Text style={[styles.errorText, { color: colors.text }]}>
-          {initError}
-        </Text>
-        <TouchableOpacity
-          style={[styles.retryButton, { backgroundColor: brand.primary }]}
-          onPress={initialize}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+    </Animated.View>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -225,28 +195,29 @@ export default function ProductsScreen() {
         style={styles.header}
       >
         <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.title}>Products</Text>
-            <Text style={styles.subtitle}>
-              {products.length} products available
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+          <Text style={styles.title}>Products</Text>
+          <TouchableOpacity
+            style={[styles.addButton, shadows.soft]}
+            onPress={handleAdd}
+          >
             <IconSymbol name="plus" size={20} color={brand.primary} />
+            <Text style={styles.addButtonText}>Add New</Text>
           </TouchableOpacity>
         </View>
-      </LinearGradient>
 
-      {/* Search Bar */}
-      <View style={styles.searchWrapper}>
+        {/* Search Bar */}
         <View
           style={[
-            styles.searchContainer,
-            { backgroundColor: colors.card, borderColor: colors.border },
+            styles.searchBar,
+            { backgroundColor: colors.background },
             shadows.soft,
           ]}
         >
-          <IconSymbol name="magnifyingglass" size={18} color={colors.icon} />
+          <IconSymbol
+            name="magnifyingglass"
+            size={18}
+            color={colors.textTertiary}
+          />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
             placeholder="Search products..."
@@ -254,21 +225,30 @@ export default function ProductsScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <IconSymbol
+                name="xmark.circle.fill"
+                size={16}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+          )}
         </View>
-      </View>
+      </LinearGradient>
 
-      {/* Category Tabs */}
-      <View style={styles.categoryWrapper}>
+      {/* Category Filter */}
+      <View style={styles.categoryContainer}>
         <FlatList
           horizontal
           data={CATEGORIES}
-          keyExtractor={(item) => item.key}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryList}
+          keyExtractor={(item) => item.key}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[
-                styles.categoryTab,
+                styles.categoryChip,
                 {
                   backgroundColor:
                     selectedCategory === item.key ? brand.primary : colors.card,
@@ -280,12 +260,24 @@ export default function ProductsScreen() {
               ]}
               onPress={() => setSelectedCategory(item.key)}
             >
+              <IconSymbol
+                // @ts-ignore
+                name={item.icon}
+                size={14}
+                color={
+                  selectedCategory === item.key
+                    ? "#FFFFFF"
+                    : colors.textSecondary
+                }
+              />
               <Text
                 style={[
-                  styles.categoryTabText,
+                  styles.categoryText,
                   {
                     color:
-                      selectedCategory === item.key ? "#FFFFFF" : colors.text,
+                      selectedCategory === item.key
+                        ? "#FFFFFF"
+                        : colors.textSecondary,
                   },
                 ]}
               >
@@ -296,58 +288,59 @@ export default function ProductsScreen() {
         />
       </View>
 
-      {/* Error Display */}
-      {error && (
-        <TouchableOpacity style={styles.errorBanner} onPress={clearError}>
-          <Text style={styles.errorBannerText}>{error}</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Products List */}
+      {/* Product List */}
       <FlatList
         data={filteredProducts}
-        renderItem={renderProduct}
+        renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
-        numColumns={2}
+        columnWrapperStyle={
+          isTablet ? { justifyContent: "space-between" } : undefined
+        }
+        numColumns={isTablet ? 3 : 1}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={handleRefresh}
+            onRefresh={onRefresh}
             tintColor={brand.primary}
           />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            {isLoading ? (
-              <ActivityIndicator size="large" color={brand.primary} />
-            ) : (
-              <>
-                <View
-                  style={[
-                    styles.emptyIcon,
-                    { backgroundColor: brand.primaryFaded },
-                  ]}
-                >
-                  <IconSymbol
-                    name="cart.fill"
-                    size={40}
-                    color={brand.primary}
-                  />
-                </View>
-                <Text style={[styles.emptyText, { color: colors.text }]}>
-                  No products yet
+          !isLoading ? (
+            <View style={styles.emptyState}>
+              <IconSymbol name="cart" size={48} color={colors.textTertiary} />
+              <Text
+                style={[styles.emptyStateText, { color: colors.textSecondary }]}
+              >
+                No products found
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.emptyStateButton,
+                  { backgroundColor: brand.primary },
+                ]}
+                onPress={handleAdd}
+              >
+                <Text style={styles.emptyStateButtonText}>
+                  Add Your First Product
                 </Text>
-                <Text
-                  style={[styles.emptySubtext, { color: colors.textSecondary }]}
-                >
-                  Tap the + button to add your first product
-                </Text>
-              </>
-            )}
-          </View>
+              </TouchableOpacity>
+            </View>
+          ) : null
         }
       />
+
+      {isLoading && !refreshing && (
+        <View
+          style={[
+            styles.loadingOverlay,
+            { backgroundColor: colors.background },
+          ]}
+        >
+          <ActivityIndicator size="large" color={brand.primary} />
+        </View>
+      )}
     </View>
   );
 }
@@ -356,22 +349,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    gap: 16,
-  },
   header: {
-    paddingTop: 56,
+    paddingTop: 60,
     paddingBottom: 24,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
   },
   headerContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 16,
   },
   title: {
     fontSize: 28,
@@ -379,152 +368,144 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 4,
-  },
   addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
-  },
-  searchWrapper: {
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
-    paddingTop: 16,
-    marginTop: -12,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    gap: 6,
   },
-  searchContainer: {
+  addButtonText: {
+    color: brand.primary,
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  searchBar: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    gap: 12,
+    height: 48,
+    borderRadius: radius.full,
+    gap: 10,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
+    height: "100%",
   },
-  categoryWrapper: {
-    paddingVertical: 12,
+  categoryContainer: {
+    paddingVertical: 16,
   },
   categoryList: {
-    paddingHorizontal: 16,
-    gap: 8,
+    paddingHorizontal: 20,
+    gap: 10,
   },
-  categoryTab: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+  categoryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: radius.full,
     borderWidth: 1,
-    marginRight: 8,
+    gap: 6,
   },
-  categoryTabText: {
+  categoryText: {
     fontSize: 14,
-    fontWeight: "600",
-  },
-  errorBanner: {
-    backgroundColor: "#FF3B30",
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: radius.md,
-  },
-  errorBannerText: {
-    color: "#FFFFFF",
     fontWeight: "600",
   },
   listContent: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 20,
     paddingBottom: 100,
   },
-  productCard: {
-    flex: 1,
-    margin: 4,
-    padding: 16,
+  card: {
     borderRadius: radius.lg,
+    padding: 16,
     borderWidth: 1,
-    minHeight: 140,
+    gap: 12,
+    overflow: "hidden",
   },
-  productContent: {
-    flex: 1,
+  cardImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
-  categoryBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.sm,
-    marginBottom: 8,
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  productName: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  productDesc: {
-    fontSize: 12,
-    marginBottom: 8,
-  },
-  productPrice: {
-    fontSize: 20,
-    fontWeight: "800",
-    marginTop: "auto",
-  },
-  deleteButton: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    padding: 6,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingTop: 60,
-    paddingHorizontal: 40,
-    gap: 16,
-  },
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
   },
-  emptyText: {
-    fontSize: 18,
+  priceTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "#FFFFFF",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#F2F2F7",
+  },
+  priceText: {
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  cardContent: {
+    gap: 4,
+  },
+  productName: {
+    fontSize: 17,
     fontWeight: "700",
   },
-  emptySubtext: {
-    fontSize: 14,
-    textAlign: "center",
+  productCategory: {
+    fontSize: 13,
   },
-  loadingText: {
+  stockContainer: {
+    marginTop: 8,
+    flexDirection: "row",
+  },
+  stockBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    gap: 4,
+  },
+  stockText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    gap: 16,
+  },
+  emptyStateText: {
     fontSize: 16,
     fontWeight: "500",
   },
-  errorText: {
-    fontSize: 16,
-    textAlign: "center",
+  emptyStateButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: radius.full,
   },
-  retryButton: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: radius.lg,
-  },
-  retryButtonText: {
+  emptyStateButtonText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 16,
+    fontSize: 15,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
   },
 });

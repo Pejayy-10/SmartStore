@@ -1,6 +1,6 @@
 /**
- * SmartStore Edit Recipe Screen
- * Form for editing existing recipes with ingredient selection
+ * SmartStore Add Recipe Screen
+ * Form for creating new recipes with ingredient selection
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -9,7 +9,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useIngredientStore, useRecipeStore, useSettingsStore } from "@/store";
 import type { Ingredient } from "@/types";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -33,19 +33,15 @@ interface RecipeItem {
   unitType: string;
 }
 
-export default function EditRecipeScreen() {
+export default function AddRecipeScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const recipeId = parseInt(id || "0", 10);
-
   const systemColorScheme = useColorScheme() ?? "light";
   const { themeMode } = useSettingsStore();
   const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
-  const { recipes, updateRecipe, deleteRecipe, isLoading } = useRecipeStore();
+  const { createRecipe, isLoading } = useRecipeStore();
   const { ingredients, fetchIngredients } = useIngredientStore();
-  const recipe = recipes.find((r) => r.id === recipeId);
 
   // Fetch ingredients
   useEffect(() => {
@@ -58,33 +54,6 @@ export default function EditRecipeScreen() {
   const [servings, setServings] = useState("1");
   const [recipeItems, setRecipeItems] = useState<RecipeItem[]>([]);
   const [showIngredientPicker, setShowIngredientPicker] = useState(false);
-
-  // Load recipe data
-  useEffect(() => {
-    if (recipe) {
-      setName(recipe.name);
-      setDescription(recipe.description || "");
-      setServings(recipe.servings.toString());
-
-      // Load recipe items
-      if (recipe.items) {
-        const items: RecipeItem[] = recipe.items
-          .map((item) => {
-            const ingredient = ingredients.find(
-              (i) => i.id === item.ingredient_id,
-            );
-            return {
-              ingredientId: item.ingredient_id,
-              ingredient: ingredient!,
-              quantity: item.quantity,
-              unitType: item.unit_type,
-            };
-          })
-          .filter((item) => item.ingredient);
-        setRecipeItems(items);
-      }
-    }
-  }, [recipe, ingredients]);
 
   // Calculate total cost
   const totalCost = recipeItems.reduce((sum, item) => {
@@ -155,7 +124,7 @@ export default function EditRecipeScreen() {
       return;
     }
 
-    const success = await updateRecipe(recipeId, {
+    const success = await createRecipe({
       name: name.trim(),
       description: description.trim() || undefined,
       servings: servingsNum,
@@ -169,40 +138,9 @@ export default function EditRecipeScreen() {
     if (success) {
       router.back();
     } else {
-      Alert.alert("Error", "Failed to update recipe");
+      Alert.alert("Error", "Failed to create recipe");
     }
-  }, [
-    recipeId,
-    name,
-    description,
-    servingsNum,
-    recipeItems,
-    updateRecipe,
-    router,
-  ]);
-
-  // Handle delete
-  const handleDelete = useCallback(() => {
-    Alert.alert(
-      "Delete Recipe",
-      `Are you sure you want to delete "${name}"? This action cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            const success = await deleteRecipe(recipeId);
-            if (success) {
-              router.back();
-            } else {
-              Alert.alert("Error", "Failed to delete recipe");
-            }
-          },
-        },
-      ],
-    );
-  }, [recipeId, name, deleteRecipe, router]);
+  }, [name, description, servingsNum, recipeItems, createRecipe, router]);
 
   // Render recipe item
   const renderRecipeItem = ({ item }: { item: RecipeItem }) => (
@@ -255,20 +193,6 @@ export default function EditRecipeScreen() {
     </View>
   );
 
-  if (!recipe) {
-    return (
-      <View
-        style={[
-          styles.container,
-          styles.centered,
-          { backgroundColor: colors.background },
-        ]}
-      >
-        <ActivityIndicator size="large" color={brand.primary} />
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -284,7 +208,7 @@ export default function EditRecipeScreen() {
         >
           <IconSymbol name="chevron.left" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.title}>Edit Recipe</Text>
+        <Text style={styles.title}>New Recipe</Text>
         <View style={{ width: 40 }} />
       </LinearGradient>
 
@@ -479,16 +403,10 @@ export default function EditRecipeScreen() {
             ) : (
               <>
                 <IconSymbol name="checkmark" size={20} color="#FFFFFF" />
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+                <Text style={styles.saveButtonText}>Create Recipe</Text>
               </>
             )}
           </LinearGradient>
-        </TouchableOpacity>
-
-        {/* Delete Button */}
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-          <IconSymbol name="trash" size={18} color="#FF3B30" />
-          <Text style={styles.deleteButtonText}>Delete Recipe</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
 
@@ -572,10 +490,6 @@ export default function EditRecipeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  centered: {
-    justifyContent: "center",
-    alignItems: "center",
   },
   header: {
     flexDirection: "row",
@@ -812,19 +726,5 @@ const styles = StyleSheet.create({
   emptyModalText: {
     fontSize: 14,
     textAlign: "center",
-  },
-  deleteButton: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginBottom: 40,
-    paddingVertical: 14,
-    gap: 8,
-  },
-  deleteButtonText: {
-    color: "#FF3B30",
-    fontSize: 15,
-    fontWeight: "600",
   },
 });

@@ -1,27 +1,24 @@
 /**
  * SmartStore Recipes Screen
- * Professional design with orange theme
+ * Recipe management with professional UI
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors, brand, radius, shadows } from "@/constants/theme";
+import { Colors, brand, radius, shadows, spacing } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAppStore, useRecipeStore, useSettingsStore } from "@/store";
-import type { RecipeWithItems } from "@/types";
+import { useRecipeStore, useSettingsStore } from "@/store";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
     FlatList,
     RefreshControl,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 export default function RecipesScreen() {
   const router = useRouter();
@@ -30,186 +27,98 @@ export default function RecipesScreen() {
   const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
+  const { recipes, isLoading, fetchRecipes } = useRecipeStore();
   const [refreshing, setRefreshing] = useState(false);
 
-  // App store for initialization
-  const { isInitialized, isInitializing, initialize, initError } =
-    useAppStore();
-
-  // Recipe store
-  const {
-    recipes,
-    isLoading,
-    error,
-    searchQuery,
-    fetchRecipes,
-    searchRecipes,
-    deleteRecipe,
-    clearError,
-  } = useRecipeStore();
-
-  // Initialize database on mount
   useEffect(() => {
-    if (!isInitialized && !isInitializing) {
-      initialize();
-    }
-  }, [isInitialized, isInitializing, initialize]);
+    fetchRecipes();
+  }, [fetchRecipes]);
 
-  // Fetch recipes when initialized
-  useEffect(() => {
-    if (isInitialized) {
-      fetchRecipes();
-    }
-  }, [isInitialized, fetchRecipes]);
-
-  // Handle refresh
-  const handleRefresh = useCallback(async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchRecipes();
     setRefreshing(false);
   }, [fetchRecipes]);
 
-  // Handle delete
-  const handleDelete = useCallback(
-    (recipe: RecipeWithItems) => {
-      Alert.alert(
-        "Delete Recipe",
-        `Are you sure you want to delete "${recipe.name}"?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: async () => {
-              const success = await deleteRecipe(recipe.id);
-              if (!success) {
-                Alert.alert("Error", "Failed to delete recipe");
-              }
-            },
-          },
-        ],
-      );
-    },
-    [deleteRecipe],
-  );
+  const handleEdit = (recipe: any) => {
+    router.push({
+      pathname: "/recipes/[id]",
+      params: { id: recipe.id },
+    });
+  };
 
-  // Handle add
-  const handleAdd = useCallback(() => {
+  const handleAdd = () => {
     router.push("/recipes/add");
-  }, [router]);
+  };
 
-  // Handle edit
-  const handleEdit = useCallback(
-    (recipe: RecipeWithItems) => {
-      router.push(`/recipes/${recipe.id}`);
-    },
-    [router],
-  );
-
-  // Render recipe item
-  const renderRecipe = ({ item }: { item: RecipeWithItems }) => {
-    return (
+  const renderItem = ({ item, index }: { item: any; index: number }) => (
+    <Animated.View
+      entering={FadeInDown.delay(index * 50).springify()}
+      style={{ marginBottom: spacing.md }}
+    >
       <TouchableOpacity
         style={[
-          styles.recipeCard,
+          styles.card,
           { backgroundColor: colors.card, borderColor: colors.border },
           shadows.soft,
         ]}
         onPress={() => handleEdit(item)}
         activeOpacity={0.7}
       >
-        <View style={styles.recipeContent}>
-          <Text
-            style={[styles.recipeName, { color: colors.text }]}
-            numberOfLines={2}
-          >
+        <View style={styles.cardHeader}>
+          <Text style={[styles.recipeName, { color: colors.text }]}>
             {item.name}
           </Text>
-
-          <View style={styles.recipeMeta}>
-            <View
-              style={[styles.metaChip, { backgroundColor: brand.primaryFaded }]}
-            >
-              <IconSymbol name="leaf.fill" size={12} color={brand.primary} />
-              <Text style={[styles.metaChipText, { color: brand.primary }]}>
-                {item.items?.length || 0} items
-              </Text>
-            </View>
-            <View
-              style={[styles.metaChip, { backgroundColor: colors.background }]}
-            >
-              <Text
-                style={[styles.metaChipText, { color: colors.textSecondary }]}
-              >
-                {item.servings} servings
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.costRow}>
-            <View>
-              <Text style={[styles.costLabel, { color: colors.textTertiary }]}>
-                Total Cost
-              </Text>
-              <Text style={[styles.costValue, { color: brand.primary }]}>
-                ₱{item.total_cost.toFixed(2)}
-              </Text>
-            </View>
-            <View style={styles.costDivider} />
-            <View>
-              <Text style={[styles.costLabel, { color: colors.textTertiary }]}>
-                Per Serving
-              </Text>
-              <Text style={[styles.costPerServing, { color: colors.text }]}>
-                ₱{item.cost_per_serving.toFixed(2)}
-              </Text>
-            </View>
+          <View
+            style={[
+              styles.servingsBadge,
+              { backgroundColor: brand.primaryFaded },
+            ]}
+          >
+            <Text style={[styles.servingsText, { color: brand.primary }]}>
+              {item.servings} servings
+            </Text>
           </View>
         </View>
 
-        <TouchableOpacity
-          onPress={() => handleDelete(item)}
-          style={styles.deleteButton}
+        <Text
+          style={[styles.recipeDescription, { color: colors.textSecondary }]}
+          numberOfLines={2}
         >
-          <IconSymbol name="trash" size={18} color="#FF3B30" />
-        </TouchableOpacity>
+          {item.description || "No description provided."}
+        </Text>
+
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+        <View style={styles.costRow}>
+          <View>
+            <Text style={[styles.costLabel, { color: colors.textTertiary }]}>
+              Total Cost
+            </Text>
+            <Text style={[styles.costValue, { color: colors.text }]}>
+              ₱{item.total_cost.toFixed(2)}
+            </Text>
+          </View>
+
+          <View
+            style={[styles.verticalDivider, { backgroundColor: colors.border }]}
+          />
+
+          <View>
+            <Text style={[styles.costLabel, { color: colors.textTertiary }]}>
+              Per Serving
+            </Text>
+            <Text style={[styles.costValuePrimary, { color: brand.primary }]}>
+              ₱{item.cost_per_serving.toFixed(2)}
+            </Text>
+          </View>
+        </View>
       </TouchableOpacity>
-    );
-  };
-
-  // Show loading state
-  if (isInitializing) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={brand.primary} />
-        <Text style={[styles.loadingText, { color: colors.text }]}>
-          Loading...
-        </Text>
-      </View>
-    );
-  }
-
-  // Show init error
-  if (initError) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF3B30" />
-        <Text style={[styles.errorText, { color: colors.text }]}>
-          {initError}
-        </Text>
-        <TouchableOpacity
-          style={[styles.retryButton, { backgroundColor: brand.primary }]}
-          onPress={initialize}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+    </Animated.View>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <LinearGradient
         colors={[brand.primary, brand.primaryDark]}
         start={{ x: 0, y: 0 }}
@@ -217,87 +126,45 @@ export default function RecipesScreen() {
         style={styles.header}
       >
         <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.title}>Recipes</Text>
-            <Text style={styles.subtitle}>
-              {recipes.length} recipes created
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+          <Text style={styles.title}>Recipes</Text>
+          <TouchableOpacity
+            style={[styles.addButton, shadows.soft]}
+            onPress={handleAdd}
+          >
             <IconSymbol name="plus" size={20} color={brand.primary} />
+            <Text style={styles.addButtonText}>Add Recipe</Text>
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
-      {/* Search Bar */}
-      <View style={styles.searchWrapper}>
-        <View
-          style={[
-            styles.searchContainer,
-            { backgroundColor: colors.card, borderColor: colors.border },
-            shadows.soft,
-          ]}
-        >
-          <IconSymbol name="magnifyingglass" size={18} color={colors.icon} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search recipes..."
-            placeholderTextColor={colors.textTertiary}
-            value={searchQuery}
-            onChangeText={searchRecipes}
-          />
-        </View>
-      </View>
-
-      {/* Error Display */}
-      {error && (
-        <TouchableOpacity style={styles.errorBanner} onPress={clearError}>
-          <Text style={styles.errorBannerText}>{error}</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Recipes List */}
       <FlatList
         data={recipes}
-        renderItem={renderRecipe}
+        renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={handleRefresh}
+            onRefresh={onRefresh}
             tintColor={brand.primary}
           />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            {isLoading ? (
-              <ActivityIndicator size="large" color={brand.primary} />
-            ) : (
-              <>
-                <View
-                  style={[
-                    styles.emptyIcon,
-                    { backgroundColor: brand.primaryFaded },
-                  ]}
-                >
-                  <IconSymbol
-                    name="doc.text.fill"
-                    size={40}
-                    color={brand.primary}
-                  />
-                </View>
-                <Text style={[styles.emptyText, { color: colors.text }]}>
-                  No recipes yet
-                </Text>
-                <Text
-                  style={[styles.emptySubtext, { color: colors.textSecondary }]}
-                >
-                  Create recipes to track ingredient costs
-                </Text>
-              </>
-            )}
-          </View>
+          !isLoading ? (
+            <View style={styles.emptyState}>
+              <IconSymbol
+                name="doc.text.fill"
+                size={48}
+                color={colors.textTertiary}
+              />
+              <Text
+                style={[styles.emptyStateText, { color: colors.textSecondary }]}
+              >
+                No recipes created yet
+              </Text>
+            </View>
+          ) : null
         }
       />
     </View>
@@ -308,17 +175,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    gap: 16,
-  },
   header: {
-    paddingTop: 56,
+    paddingTop: 60,
     paddingBottom: 24,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
   },
   headerContent: {
     flexDirection: "row",
@@ -331,151 +193,87 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 4,
-  },
   addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  searchWrapper: {
-    padding: 16,
-    marginTop: -12,
-  },
-  searchContainer: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    gap: 12,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    gap: 6,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-  },
-  errorBanner: {
-    backgroundColor: "#FF3B30",
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: radius.md,
-  },
-  errorBannerText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
+  addButtonText: {
+    color: brand.primary,
+    fontWeight: "700",
+    fontSize: 14,
   },
   listContent: {
-    paddingHorizontal: 16,
+    padding: 20,
     paddingBottom: 100,
   },
-  recipeCard: {
-    padding: 16,
-    marginBottom: 12,
+  card: {
     borderRadius: radius.lg,
+    padding: 16,
     borderWidth: 1,
   },
-  recipeContent: {
-    flex: 1,
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
   },
   recipeName: {
     fontSize: 18,
     fontWeight: "700",
-    marginBottom: 12,
-    paddingRight: 32,
+    flex: 1,
   },
-  recipeMeta: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 16,
-  },
-  metaChip: {
-    flexDirection: "row",
-    alignItems: "center",
+  servingsBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radius.sm,
-    gap: 5,
+    paddingVertical: 4,
+    borderRadius: radius.full,
   },
-  metaChipText: {
+  servingsText: {
     fontSize: 12,
     fontWeight: "600",
   },
+  recipeDescription: {
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    width: "100%",
+    marginBottom: 16,
+  },
   costRow: {
     flexDirection: "row",
+    justifyContent: "space-around",
     alignItems: "center",
   },
+  verticalDivider: {
+    width: 1,
+    height: 30,
+  },
   costLabel: {
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 2,
+    fontSize: 12,
+    marginBottom: 4,
   },
   costValue: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  costValuePrimary: {
     fontSize: 20,
     fontWeight: "800",
   },
-  costDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: "#E0E0E0",
-    marginHorizontal: 20,
-  },
-  costPerServing: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  deleteButton: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    padding: 6,
-  },
-  emptyContainer: {
+  emptyState: {
     alignItems: "center",
-    paddingTop: 60,
-    paddingHorizontal: 40,
+    justifyContent: "center",
+    paddingVertical: 60,
     gap: 16,
   },
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  emptySubtext: {
-    fontSize: 14,
-    textAlign: "center",
-  },
-  loadingText: {
+  emptyStateText: {
     fontSize: 16,
     fontWeight: "500",
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: "center",
-  },
-  retryButton: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: radius.lg,
-  },
-  retryButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 16,
   },
 });

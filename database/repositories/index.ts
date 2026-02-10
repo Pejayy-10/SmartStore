@@ -7,11 +7,15 @@
 export { BaseRepository } from "./base.repository";
 
 // Entity repositories
+export { EmployeeRepository, employeeRepository } from "./employee.repository";
+export { ExpenseRepository, expenseRepository } from "./expense.repository";
 export {
-    IngredientRepository, ingredientRepository
+    IngredientRepository,
+    ingredientRepository
 } from "./ingredient.repository";
 export {
-    InventoryTransactionRepository, inventoryTransactionRepository
+    InventoryTransactionRepository,
+    inventoryTransactionRepository
 } from "./inventory-transaction.repository";
 export { ProductRepository, productRepository } from "./product.repository";
 export { RecipeRepository, recipeRepository } from "./recipe.repository";

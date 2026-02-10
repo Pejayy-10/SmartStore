@@ -1,42 +1,28 @@
 /**
- * SmartStore Sales Screen
- * Professional design with orange theme
+ * SmartStore Sales History Screen
+ * Transaction log with tappable cards, detail modal, and void functionality
  */
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors, brand, radius, shadows } from "@/constants/theme";
+import { Colors, brand, radius, shadows, spacing } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAppStore, useSalesStore, useSettingsStore } from "@/store";
-import type { PaymentMethod, Sale } from "@/types";
+import { useSalesStore, useSettingsStore } from "@/store";
+import type { SaleWithItems } from "@/types";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     FlatList,
+    Modal,
     RefreshControl,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
-
-type FilterPeriod = "today" | "week" | "month" | "all";
-
-const FILTER_OPTIONS: { key: FilterPeriod; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "week", label: "Week" },
-  { key: "month", label: "Month" },
-  { key: "all", label: "All" },
-];
-
-const PAYMENT_COLORS: Record<PaymentMethod, string> = {
-  cash: "#34C759",
-  card: "#007AFF",
-  gcash: "#0066FF",
-  maya: "#00B900",
-  other: "#8E8E93",
-};
+import Animated, { FadeInUp, SlideInDown } from "react-native-reanimated";
 
 export default function SalesScreen() {
   const systemColorScheme = useColorScheme() ?? "light";
@@ -44,220 +30,486 @@ export default function SalesScreen() {
   const colorScheme = themeMode === "system" ? systemColorScheme : themeMode;
   const colors = Colors[colorScheme];
 
-  const [refreshing, setRefreshing] = useState(false);
-  const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>("today");
-
-  // App store for initialization
-  const { isInitialized, isInitializing, initialize, initError } =
-    useAppStore();
-
-  // Sales store
+  const router = useRouter();
   const {
     sales,
     dailySummary,
+    selectedSale,
     isLoading,
-    error,
     fetchSales,
-    fetchByDateRange,
     fetchDailySummary,
+    getSaleDetails,
     voidSale,
-    clearError,
   } = useSalesStore();
+  const [refreshing, setRefreshing] = useState(false);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
-  // Get today's date
-  const getTodayDate = () => new Date().toISOString().split("T")[0];
-
-  // Load sales based on filter
-  const loadSales = useCallback(async () => {
-    const today = getTodayDate();
-
-    if (filterPeriod === "today") {
-      await fetchByDateRange(today, today);
-      await fetchDailySummary(today);
-    } else if (filterPeriod === "week") {
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      await fetchByDateRange(weekAgo.toISOString().split("T")[0], today);
-      await fetchDailySummary(today);
-    } else if (filterPeriod === "month") {
-      const monthAgo = new Date();
-      monthAgo.setMonth(monthAgo.getMonth() - 1);
-      await fetchByDateRange(monthAgo.toISOString().split("T")[0], today);
-      await fetchDailySummary(today);
-    } else {
-      await fetchSales();
-      await fetchDailySummary(today);
-    }
-  }, [filterPeriod, fetchSales, fetchByDateRange, fetchDailySummary]);
-
-  // Initialize database on mount
   useEffect(() => {
-    if (!isInitialized && !isInitializing) {
-      initialize();
-    }
-  }, [isInitialized, isInitializing, initialize]);
+    fetchSales();
+    const today = new Date().toISOString().split("T")[0];
+    fetchDailySummary(today);
+  }, [fetchSales, fetchDailySummary]);
 
-  // Fetch sales when initialized
-  useEffect(() => {
-    if (isInitialized) {
-      loadSales();
-    }
-  }, [isInitialized]);
-
-  // Reload when filter changes
-  useEffect(() => {
-    if (isInitialized) {
-      loadSales();
-    }
-  }, [filterPeriod]);
-
-  // Handle refresh
-  const handleRefresh = useCallback(async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadSales();
+    await fetchSales();
+    const today = new Date().toISOString().split("T")[0];
+    await fetchDailySummary(today);
     setRefreshing(false);
-  }, [loadSales]);
+  }, [fetchSales, fetchDailySummary]);
 
-  // Handle void
-  const handleVoid = useCallback(
-    (sale: Sale) => {
-      Alert.alert(
-        "Void Sale",
-        `Are you sure you want to void sale #${sale.id}?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Void",
-            style: "destructive",
-            onPress: async () => {
-              const success = await voidSale(sale.id);
-              if (success) {
-                await loadSales();
-              } else {
-                Alert.alert("Error", "Failed to void sale");
-              }
-            },
-          },
-        ],
-      );
-    },
-    [voidSale, loadSales],
-  );
-
-  // Format time
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const formatFullDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString([], {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
     });
   };
 
-  // Render sale item
-  const renderSale = ({ item }: { item: Sale }) => {
-    return (
-      <View
-        style={[
-          styles.saleCard,
-          { backgroundColor: colors.card, borderColor: colors.border },
-          shadows.soft,
-        ]}
-      >
-        <View style={styles.saleHeader}>
-          <View style={styles.saleIdContainer}>
-            <Text style={[styles.saleId, { color: colors.text }]}>
-              #{item.id}
-            </Text>
-            <Text style={[styles.saleTime, { color: colors.textTertiary }]}>
-              {formatTime(item.created_at)}
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.paymentBadge,
-              { backgroundColor: PAYMENT_COLORS[item.payment_method] },
-            ]}
-          >
-            <Text style={styles.paymentBadgeText}>
-              {item.payment_method.toUpperCase()}
-            </Text>
-          </View>
-        </View>
+  const formatDetailDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString([], {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
 
-        <View style={styles.saleDetails}>
-          <View style={styles.saleRow}>
-            <Text style={[styles.saleLabel, { color: colors.textSecondary }]}>
-              Total
-            </Text>
-            <Text style={[styles.saleTotal, { color: brand.primary }]}>
-              ₱{item.total.toFixed(2)}
-            </Text>
-          </View>
-          {item.discount_amount > 0 && (
-            <View style={styles.saleRow}>
-              <Text style={[styles.saleLabel, { color: colors.textSecondary }]}>
-                Discount
+  const handleSalePress = async (saleId: number) => {
+    await getSaleDetails(saleId);
+    setDetailModalVisible(true);
+  };
+
+  const handleVoidSale = (sale: SaleWithItems) => {
+    Alert.alert(
+      "Void Sale",
+      `Are you sure you want to void Sale #${sale.id.toString().padStart(6, "0")}?\n\nTotal: ₱${(sale.total ?? (sale as any).total_amount ?? 0).toFixed(2)}\n\nThis will reverse any inventory deductions and remove the sale from records.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Void Sale",
+          style: "destructive",
+          onPress: async () => {
+            const success = await voidSale(sale.id);
+            if (success) {
+              setDetailModalVisible(false);
+              Alert.alert("Success", "Sale has been voided successfully.");
+            } else {
+              Alert.alert("Error", "Failed to void sale. Please try again.");
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const getPaymentIcon = (method: string) => {
+    switch (method) {
+      case "cash":
+        return "banknote.fill" as const;
+      case "card":
+        return "creditcard.fill" as const;
+      default:
+        return "phone.fill" as const;
+    }
+  };
+
+  const renderItem = ({ item, index }: { item: any; index: number }) => {
+    const total = item.total ?? item.total_amount ?? 0;
+    const saleDate = item.sale_date ?? item.created_at ?? "";
+    const isVoided = item.status === "voided";
+
+    return (
+      <Animated.View
+        entering={FadeInUp.delay(index * 20).springify()}
+        style={{ marginBottom: spacing.sm }}
+      >
+        <TouchableOpacity
+          style={[
+            styles.saleCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+            shadows.soft,
+            isVoided && { opacity: 0.5 },
+          ]}
+          onPress={() => handleSalePress(item.id)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.saleHeader}>
+            <View style={styles.saleInfo}>
+              <Text style={[styles.saleTime, { color: colors.textSecondary }]}>
+                {formatTime(saleDate)}
               </Text>
-              <Text style={[styles.saleDiscount, { color: "#34C759" }]}>
-                -₱{item.discount_amount.toFixed(2)}
+              <Text style={[styles.saleDate, { color: colors.textTertiary }]}>
+                {formatFullDate(saleDate)}
               </Text>
             </View>
-          )}
+            <View style={{ alignItems: "flex-end" }}>
+              <Text
+                style={[
+                  styles.saleAmount,
+                  { color: isVoided ? "#FF3B30" : brand.primary },
+                  isVoided && { textDecorationLine: "line-through" },
+                ]}
+              >
+                ₱{total.toFixed(2)}
+              </Text>
+              {isVoided && (
+                <Text
+                  style={{ fontSize: 10, color: "#FF3B30", fontWeight: "700" }}
+                >
+                  VOIDED
+                </Text>
+              )}
+            </View>
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          <View style={styles.saleDetails}>
+            <View style={styles.paymentBadge}>
+              <IconSymbol
+                name={getPaymentIcon(item.payment_method)}
+                size={12}
+                color={colors.textSecondary}
+              />
+              <Text
+                style={[styles.paymentText, { color: colors.textSecondary }]}
+              >
+                {item.payment_method?.toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.saleFooterRight}>
+              <Text
+                style={[styles.transactionId, { color: colors.textTertiary }]}
+              >
+                #{item.id.toString().padStart(6, "0")}
+              </Text>
+              <IconSymbol
+                name="chevron.right"
+                size={14}
+                color={colors.textTertiary}
+              />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  // ── Sale Detail Modal ──────────────────────────────────────────────
+  const DetailModal = () => {
+    if (!selectedSale) return null;
+
+    const sale = selectedSale;
+    const total = sale.total ?? (sale as any).total_amount ?? 0;
+    const subtotal = sale.subtotal ?? (sale as any).subtotal_amount ?? total;
+    const discount = sale.discount_amount ?? 0;
+    const received = sale.amount_received ?? total;
+    const change = sale.change_amount ?? 0;
+    const saleDate = (sale as any).sale_date ?? sale.created_at ?? "";
+
+    return (
+      <Modal
+        visible={detailModalVisible}
+        animationType="none"
+        transparent
+        onRequestClose={() => setDetailModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            entering={SlideInDown.springify().damping(20)}
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            {/* Modal Header */}
+            <View style={styles.modalDragHandle}>
+              <View
+                style={[styles.dragBar, { backgroundColor: colors.border }]}
+              />
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 40 }}
+            >
+              {/* Receipt Header */}
+              <View style={styles.receiptHeader}>
+                <View
+                  style={[
+                    styles.receiptIconBox,
+                    { backgroundColor: brand.primaryFaded },
+                  ]}
+                >
+                  <IconSymbol
+                    name="doc.text.fill"
+                    size={28}
+                    color={brand.primary}
+                  />
+                </View>
+                <Text style={[styles.receiptTitle, { color: colors.text }]}>
+                  Sale #{sale.id.toString().padStart(6, "0")}
+                </Text>
+                <Text
+                  style={[styles.receiptDate, { color: colors.textSecondary }]}
+                >
+                  {formatDetailDate(saleDate)} • {formatTime(saleDate)}
+                </Text>
+              </View>
+
+              {/* Payment Method Badge */}
+              <View
+                style={[
+                  styles.paymentMethodCard,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.paymentMethodRow}>
+                  <IconSymbol
+                    name={getPaymentIcon(sale.payment_method)}
+                    size={18}
+                    color={brand.primary}
+                  />
+                  <Text
+                    style={[styles.paymentMethodText, { color: colors.text }]}
+                  >
+                    {sale.payment_method?.toUpperCase()}
+                  </Text>
+                </View>
+                {sale.notes ? (
+                  <Text
+                    style={[styles.saleNotes, { color: colors.textSecondary }]}
+                  >
+                    {sale.notes}
+                  </Text>
+                ) : null}
+              </View>
+
+              {/* Line Items */}
+              <View
+                style={[
+                  styles.lineItemsCard,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.lineItemsTitle,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  ITEMS
+                </Text>
+
+                {sale.items && sale.items.length > 0 ? (
+                  sale.items.map((lineItem, idx) => (
+                    <View
+                      key={lineItem.id ?? idx}
+                      style={[
+                        styles.lineItemRow,
+                        idx < sale.items.length - 1 && {
+                          borderBottomWidth: 1,
+                          borderBottomColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <View style={styles.lineItemLeft}>
+                        <View
+                          style={[
+                            styles.lineItemQtyBadge,
+                            { backgroundColor: brand.primaryFaded },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.lineItemQtyText,
+                              { color: brand.primary },
+                            ]}
+                          >
+                            {lineItem.quantity}×
+                          </Text>
+                        </View>
+                        <View style={styles.lineItemInfo}>
+                          <Text
+                            style={[
+                              styles.lineItemName,
+                              { color: colors.text },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {lineItem.product?.name ?? "Unknown Product"}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.lineItemUnitPrice,
+                              { color: colors.textTertiary },
+                            ]}
+                          >
+                            ₱{lineItem.unit_price.toFixed(2)} each
+                          </Text>
+                        </View>
+                      </View>
+                      <Text
+                        style={[
+                          styles.lineItemSubtotal,
+                          { color: colors.text },
+                        ]}
+                      >
+                        ₱{lineItem.subtotal.toFixed(2)}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text
+                    style={[styles.noItemsText, { color: colors.textTertiary }]}
+                  >
+                    No line items available
+                  </Text>
+                )}
+              </View>
+
+              {/* Totals Breakdown */}
+              <View
+                style={[
+                  styles.totalsCard,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, { color: colors.text }]}>
+                    Subtotal
+                  </Text>
+                  <Text style={[styles.totalValue, { color: colors.text }]}>
+                    ₱{subtotal.toFixed(2)}
+                  </Text>
+                </View>
+
+                {discount > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={[styles.totalLabel, { color: colors.text }]}>
+                      Discount
+                    </Text>
+                    <Text style={[styles.totalValue, { color: "#FF3B30" }]}>
+                      -₱{discount.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+
+                <View
+                  style={[
+                    styles.totalDivider,
+                    { backgroundColor: colors.border },
+                  ]}
+                />
+
+                <View style={styles.totalRow}>
+                  <Text
+                    style={[
+                      styles.totalLabel,
+                      { color: colors.text, fontWeight: "800", fontSize: 18 },
+                    ]}
+                  >
+                    Total
+                  </Text>
+                  <Text
+                    style={[
+                      styles.totalValue,
+                      {
+                        color: brand.primary,
+                        fontWeight: "800",
+                        fontSize: 22,
+                      },
+                    ]}
+                  >
+                    ₱{total.toFixed(2)}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.totalDivider,
+                    { backgroundColor: colors.border },
+                  ]}
+                />
+
+                <View style={styles.totalRow}>
+                  <Text
+                    style={[styles.totalLabel, { color: colors.textSecondary }]}
+                  >
+                    Received
+                  </Text>
+                  <Text
+                    style={[styles.totalValue, { color: colors.textSecondary }]}
+                  >
+                    ₱{received.toFixed(2)}
+                  </Text>
+                </View>
+
+                {change > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text
+                      style={[
+                        styles.totalLabel,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Change
+                    </Text>
+                    <Text style={[styles.totalValue, { color: "#34C759" }]}>
+                      ₱{change.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.closeButton,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  onPress={() => setDetailModalVisible(false)}
+                >
+                  <Text
+                    style={[styles.closeButtonText, { color: colors.text }]}
+                  >
+                    Close
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.voidButton}
+                  onPress={() => handleVoidSale(sale)}
+                >
+                  <IconSymbol
+                    name="xmark.circle.fill"
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.voidButtonText}>Void Sale</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </Animated.View>
         </View>
-
-        <TouchableOpacity
-          style={styles.voidButton}
-          onPress={() => handleVoid(item)}
-        >
-          <Text style={styles.voidButtonText}>Void</Text>
-        </TouchableOpacity>
-      </View>
+      </Modal>
     );
   };
-
-  // Calculate summary stats
-  const summaryStats = {
-    totalSales: dailySummary?.total_sales || 0,
-    transactionCount: dailySummary?.transaction_count || 0,
-    avgSale: dailySummary?.transaction_count
-      ? dailySummary.total_sales / dailySummary.transaction_count
-      : 0,
-  };
-
-  // Show loading state
-  if (isInitializing) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={brand.primary} />
-        <Text style={[styles.loadingText, { color: colors.text }]}>
-          Loading...
-        </Text>
-      </View>
-    );
-  }
-
-  // Show init error
-  if (initError) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <IconSymbol name="exclamationmark.triangle" size={48} color="#FF3B30" />
-        <Text style={[styles.errorText, { color: colors.text }]}>
-          {initError}
-        </Text>
-        <TouchableOpacity
-          style={[styles.retryButton, { backgroundColor: brand.primary }]}
-          onPress={initialize}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <LinearGradient
         colors={[brand.primary, brand.primaryDark]}
         start={{ x: 0, y: 0 }}
@@ -265,11 +517,16 @@ export default function SalesScreen() {
         style={styles.header}
       >
         <Text style={styles.title}>Sales History</Text>
-        <Text style={styles.subtitle}>{sales.length} transactions</Text>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.push("/reports" as any)}
+        >
+          <IconSymbol name="chart.pie.fill" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
       </LinearGradient>
 
       {/* Summary Cards */}
-      <View style={styles.summaryWrapper}>
+      <View style={styles.summaryContainer}>
         <View
           style={[
             styles.summaryCard,
@@ -277,128 +534,79 @@ export default function SalesScreen() {
             shadows.medium,
           ]}
         >
-          <View style={styles.summaryItem}>
+          <View
+            style={[styles.iconBox, { backgroundColor: brand.primaryFaded }]}
+          >
+            <IconSymbol name="chart.bar.fill" size={20} color={brand.primary} />
+          </View>
+          <View>
             <Text
               style={[styles.summaryLabel, { color: colors.textSecondary }]}
             >
-              Total Sales
+              Revenue
             </Text>
-            <Text style={[styles.summaryValue, { color: brand.primary }]}>
-              ₱{summaryStats.totalSales.toFixed(2)}
+            <Text style={[styles.summaryValue, { color: colors.text }]}>
+              ₱{dailySummary?.totalSales.toFixed(2) || "0.00"}
             </Text>
           </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
+        </View>
+
+        <View
+          style={[
+            styles.summaryCard,
+            { backgroundColor: colors.card },
+            shadows.medium,
+          ]}
+        >
+          <View style={[styles.iconBox, { backgroundColor: "#E8F5E9" }]}>
+            <IconSymbol name="list.bullet" size={20} color="#2E7D32" />
+          </View>
+          <View>
             <Text
               style={[styles.summaryLabel, { color: colors.textSecondary }]}
             >
               Transactions
             </Text>
             <Text style={[styles.summaryValue, { color: colors.text }]}>
-              {summaryStats.transactionCount}
-            </Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
-            <Text
-              style={[styles.summaryLabel, { color: colors.textSecondary }]}
-            >
-              Average
-            </Text>
-            <Text style={[styles.summaryValue, { color: colors.text }]}>
-              ₱{summaryStats.avgSale.toFixed(2)}
+              {dailySummary?.transactionCount || 0}
             </Text>
           </View>
         </View>
       </View>
 
-      {/* Filter Tabs */}
-      <View style={styles.filterWrapper}>
-        <FlatList
-          horizontal
-          data={FILTER_OPTIONS}
-          keyExtractor={(item) => item.key}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterList}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.filterTab,
-                {
-                  backgroundColor:
-                    filterPeriod === item.key ? brand.primary : colors.card,
-                  borderColor:
-                    filterPeriod === item.key ? brand.primary : colors.border,
-                },
-              ]}
-              onPress={() => setFilterPeriod(item.key)}
-            >
-              <Text
-                style={[
-                  styles.filterTabText,
-                  {
-                    color: filterPeriod === item.key ? "#FFFFFF" : colors.text,
-                  },
-                ]}
-              >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-
-      {/* Error Display */}
-      {error && (
-        <TouchableOpacity style={styles.errorBanner} onPress={clearError}>
-          <Text style={styles.errorBannerText}>{error}</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Sales List */}
       <FlatList
         data={sales}
-        renderItem={renderSale}
+        renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={handleRefresh}
+            onRefresh={onRefresh}
             tintColor={brand.primary}
           />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            {isLoading ? (
-              <ActivityIndicator size="large" color={brand.primary} />
-            ) : (
-              <>
-                <View
-                  style={[
-                    styles.emptyIcon,
-                    { backgroundColor: brand.primaryFaded },
-                  ]}
-                >
-                  <IconSymbol
-                    name="chart.bar.fill"
-                    size={40}
-                    color={brand.primary}
-                  />
-                </View>
-                <Text style={[styles.emptyText, { color: colors.text }]}>
-                  No sales yet
-                </Text>
-                <Text
-                  style={[styles.emptySubtext, { color: colors.textSecondary }]}
-                >
-                  Complete your first sale in the POS tab
-                </Text>
-              </>
-            )}
-          </View>
+          !isLoading ? (
+            <View style={styles.emptyState}>
+              <IconSymbol
+                name="chart.bar.fill"
+                size={48}
+                color={colors.textTertiary}
+              />
+              <Text
+                style={[styles.emptyStateText, { color: colors.textSecondary }]}
+              >
+                No sales recorded yet
+              </Text>
+            </View>
+          ) : null
         }
       />
+
+      {/* Sale Detail Modal */}
+      <DetailModal />
     </View>
   );
 }
@@ -407,17 +615,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    gap: 16,
-  },
   header: {
-    paddingTop: 56,
-    paddingBottom: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
+    marginBottom: -20,
   },
   title: {
     fontSize: 28,
@@ -425,177 +629,288 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 4,
+  headerButton: {
+    position: "absolute",
+    right: 20,
+    top: 60,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  summaryWrapper: {
-    paddingHorizontal: 16,
-    marginTop: -12,
+  summaryContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    gap: 12,
+    marginBottom: 16,
   },
   summaryCard: {
-    flexDirection: "row",
-    padding: 20,
-    borderRadius: radius.xl,
-  },
-  summaryItem: {
     flex: 1,
+    padding: 16,
+    borderRadius: radius.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: "center",
     alignItems: "center",
   },
   summaryLabel: {
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 6,
+    fontSize: 12,
+    fontWeight: "500",
   },
   summaryValue: {
     fontSize: 18,
     fontWeight: "800",
   },
-  summaryDivider: {
-    width: 1,
-    backgroundColor: "#E0E0E0",
-  },
-  filterWrapper: {
-    paddingVertical: 16,
-  },
-  filterList: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filterTab: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  filterTabText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  errorBanner: {
-    backgroundColor: "#FF3B30",
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: radius.md,
-  },
-  errorBannerText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 100,
   },
   saleCard: {
-    padding: 16,
-    marginBottom: 10,
     borderRadius: radius.lg,
+    padding: 16,
     borderWidth: 1,
   },
   saleHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
   },
-  saleIdContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+  saleInfo: {
+    gap: 2,
   },
-  saleId: {
+  saleTime: {
     fontSize: 16,
     fontWeight: "700",
   },
-  saleTime: {
-    fontSize: 13,
+  saleDate: {
+    fontSize: 12,
   },
-  paymentBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.sm,
-  },
-  paymentBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 10,
+  saleAmount: {
+    fontSize: 18,
     fontWeight: "800",
-    letterSpacing: 0.5,
+  },
+  divider: {
+    height: 1,
+    marginVertical: 12,
   },
   saleDetails: {
-    gap: 6,
-  },
-  saleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  saleLabel: {
-    fontSize: 14,
+  paymentBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
-  saleTotal: {
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  saleDiscount: {
-    fontSize: 14,
+  paymentText: {
+    fontSize: 12,
     fontWeight: "600",
   },
-  voidButton: {
-    position: "absolute",
-    bottom: 16,
-    right: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-    backgroundColor: "#FFEBEE",
-  },
-  voidButtonText: {
-    color: "#FF3B30",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  emptyContainer: {
+  saleFooterRight: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingTop: 60,
-    paddingHorizontal: 40,
+    gap: 6,
+  },
+  transactionId: {
+    fontSize: 12,
+    fontFamily: "monospace",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
     gap: 16,
   },
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  emptySubtext: {
-    fontSize: 14,
-    textAlign: "center",
-  },
-  loadingText: {
+  emptyStateText: {
     fontSize: 16,
     fontWeight: "500",
   },
-  errorText: {
-    fontSize: 16,
-    textAlign: "center",
+
+  // ── Detail Modal Styles ──────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
-  retryButton: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "90%",
+    paddingHorizontal: 20,
+  },
+  modalDragHandle: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  dragBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+  },
+
+  // Receipt Header
+  receiptHeader: {
+    alignItems: "center",
+    paddingVertical: 16,
+    gap: 8,
+  },
+  receiptIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  receiptTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  receiptDate: {
+    fontSize: 14,
+  },
+
+  // Payment Method
+  paymentMethodCard: {
+    padding: 14,
     borderRadius: radius.lg,
+    borderWidth: 1,
+    marginBottom: 12,
   },
-  retryButtonText: {
-    color: "#FFFFFF",
+  paymentMethodRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  paymentMethodText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  saleNotes: {
+    fontSize: 13,
+    marginTop: 8,
+    fontStyle: "italic",
+  },
+
+  // Line Items
+  lineItemsCard: {
+    padding: 16,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  lineItemsTitle: {
+    fontSize: 12,
     fontWeight: "700",
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  lineItemRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  lineItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  lineItemQtyBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  lineItemQtyText: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  lineItemInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  lineItemName: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  lineItemUnitPrice: {
+    fontSize: 12,
+  },
+  lineItemSubtotal: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  noItemsText: {
+    fontSize: 14,
+    textAlign: "center",
+    paddingVertical: 20,
+  },
+
+  // Totals
+  totalsCard: {
+    padding: 16,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  totalLabel: {
+    fontSize: 15,
+  },
+  totalValue: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  totalDivider: {
+    height: 1,
+    marginVertical: 8,
+  },
+
+  // Action Buttons
+  actionButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  closeButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closeButtonText: {
     fontSize: 16,
+    fontWeight: "600",
+  },
+  voidButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: radius.lg,
+    backgroundColor: "#FF3B30",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  voidButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });
