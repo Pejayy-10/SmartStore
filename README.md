@@ -9,8 +9,6 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-v5+-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)]()
 
-_(Add your project banner here: `assets/images/banner.png`)_
-
 </div>
 
 ---
